@@ -41,13 +41,11 @@ body {
   background: #0c2238;
   border-radius: 12px;
 }
-.t-name { font-size: 13px; fill: #dce6f2; text-anchor: middle; font-weight: 600; }
-.t-name.dark { fill: #2a2113; }
-.t-pros { font-size: 12px; fill: #6e5a2e; text-anchor: middle; }
-.t-units { font-size: 15px; fill: #eaf1f8; text-anchor: middle; font-weight: 700; }
-.t-units.dark { fill: #1f1a0e; }
-.t-build { font-size: 15px; text-anchor: middle; }
-.node:hover ellipse, .node:hover circle { filter: brightness(1.12); }
+.t-name { font-size: 13px; fill: #dce6f2; text-anchor: middle; font-weight: 700; }
+.t-name.dark { fill: #4a3617; paint-order: stroke; stroke: #f0e4c2; stroke-width: 2.5px; stroke-linejoin: round; }
+.t-name.sea { font-size: 11px; fill: #cfe2f2; font-weight: 600; letter-spacing: 0.3px; }
+.t-pros { font-size: 12px; fill: #6e5a2e; text-anchor: middle; font-weight: 700; }
+.badge-txt { font-size: 11px; fill: #fff; text-anchor: middle; font-weight: 800; }
 
 .dot {
   display: inline-block;

@@ -13,5 +13,8 @@
     "dev:server": "npm run dev -w packages/server",
     "dev:client": "npm run dev -w packages/client",
     "test": "npm run test -w packages/engine"
+  },
+  "devDependencies": {
+    "puppeteer": "^25.1.0"
   }
 }

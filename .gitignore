@@ -8,3 +8,7 @@ build/
 coverage/
 *.tsbuildinfo
 .vite/
+
+# временные скриншоты
+*.png
+!packages/**/*.png

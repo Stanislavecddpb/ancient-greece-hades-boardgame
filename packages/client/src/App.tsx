@@ -11,6 +11,7 @@ const CycladesClient = Client({
   board: Board,
   numPlayers: 2,
   multiplayer: Local(),
+  debug: false,
 });
 
 export function App() {
