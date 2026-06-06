@@ -1,20 +1,40 @@
-// Доменная модель Cyclades. Всё состояние игры сериализуемо — его целиком
-// гоняем между сервером и клиентами.
+// Доменная модель Cyclades для boardgame.io.
+//
+// Ход, фаза и текущий игрок живут в `ctx` фреймворка, случайность — в `random`.
+// Здесь — только предметные данные игры (объект G) и константы правил.
 
-export type PlayerId = string;
+/** Идентификатор игрока в boardgame.io: '0', '1', ... */
+export type PlayerID = string;
 export type TerritoryId = string;
 
 /** Боги, за которых идёт аукцион каждый цикл. */
 export type GodName = 'ares' | 'poseidon' | 'zeus' | 'athena' | 'apollo';
+
+/** Четыре конкурентных бога (без Аполлона) — в порядке исполнения действий. */
+export const COMPETITIVE_GODS: GodName[] = ['ares', 'poseidon', 'zeus', 'athena'];
 
 /** Типы зданий. Все четыре на островах игрока дают Метрополию. */
 export type BuildingType = 'port' | 'fortress' | 'temple' | 'university';
 
 export const ALL_BUILDINGS: BuildingType[] = ['port', 'fortress', 'temple', 'university'];
 
+/** Какое здание строит каждый бог. */
+export const GOD_BUILDING: Partial<Record<GodName, BuildingType>> = {
+  poseidon: 'port',
+  ares: 'fortress',
+  zeus: 'temple',
+  athena: 'university',
+};
+
 export interface Building {
   type: BuildingType;
-  ownerId: PlayerId;
+  ownerId: PlayerID;
+}
+
+/** Координаты для отрисовки на SVG-доске. */
+export interface Point {
+  x: number;
+  y: number;
 }
 
 /** Остров: держит войска, здания и, возможно, Метрополию. Даёт доход. */
@@ -22,6 +42,7 @@ export interface Island {
   id: TerritoryId;
   kind: 'island';
   name: string;
+  pos: Point;
   /** Сколько объектов (здания + метрополия) помещается на острове. */
   buildSlots: number;
   /** Доход золотом владельцу за цикл (рога изобилия). */
@@ -29,7 +50,7 @@ export interface Island {
   adjacentSeas: TerritoryId[];
   // --- динамика ---
   /** Кто контролирует остров (его здания и доход). null — ничей. */
-  ownerId: PlayerId | null;
+  ownerId: PlayerID | null;
   /** Войска владельца, стоящие на острове. */
   troops: number;
   buildings: Building[];
@@ -41,107 +62,89 @@ export interface Sea {
   id: TerritoryId;
   kind: 'sea';
   name: string;
+  pos: Point;
   adjacentSeas: TerritoryId[];
   adjacentIslands: TerritoryId[];
   // --- динамика ---
-  ownerId: PlayerId | null;
+  ownerId: PlayerID | null;
   fleets: number;
 }
 
 export type Territory = Island | Sea;
 
-export interface Player {
-  id: PlayerId;
+export interface PlayerData {
+  id: PlayerID;
   name: string;
   color: string;
   gold: number;
-  /** Жрецы: каждый снижает оплату ставки на 1 GP (минимум 1). */
+  /** Жрецы: каждый снижает оплату ставки на 1 GP (постоянная скидка). */
   priests: number;
-  /** Философы: 4 штуки дают Метрополию. */
+  /** Философы: 4 штуки превращаются в Метрополию. */
   philosophers: number;
-  /** Доступные к размещению войска (из запаса фигурок). */
-  troopsReserve: number;
-  /** Доступный к размещению флот. */
-  fleetsReserve: number;
+  /** Остаток фигурок войск в запасе (можно разместить на доске). */
+  troopsSupply: number;
+  /** Остаток фигурок флота в запасе. */
+  fleetsSupply: number;
   isEliminated: boolean;
 }
 
-/** Один лот аукциона: бог на дорожке расположения. */
+/** Один лот аукциона: бог и текущая ставка на нём. */
 export interface GodSlot {
   god: GodName;
-  /** Кто сейчас стоит на этом боге (последняя ставка). */
-  occupantId: PlayerId | null;
-  /** Текущая ставка золотом. */
+  /** Кто сейчас стоит на этом боге (последняя ставка). null — свободен. */
+  occupantId: PlayerID | null;
+  /** Текущая ставка золотом (для Аполлона всегда 0). */
   bid: number;
 }
 
-/** Фаза аукциона за богов. */
-export interface AuctionPhase {
-  kind: 'auction';
+/** Состояние фазы аукциона. */
+export interface AuctionState {
+  /** Конкурентные боги (по одному занявшему на каждого). */
   slots: GodSlot[];
-  /** Чья очередь делать ставку (индекс в auctionOrder). */
-  currentIndex: number;
-  /** Порядок ходов в аукционе (вытесненные снова попадают сюда). */
-  order: PlayerId[];
+  /** Игроки, выбравшие Аполлона (без ограничения числа). */
+  apollo: PlayerID[];
+  /** Чей сейчас ход делать ставку. */
+  toAct: PlayerID;
 }
 
-/** Фаза действий: победители аукциона по очереди исполняют действия бога. */
-export interface ActionsPhase {
-  kind: 'actions';
-  /** Порядок исполнения богов (Арес, Посейдон, Зевс, Афина, затем Аполлоны). */
-  resolutionOrder: GodName[];
-  /** Индекс текущего бога в resolutionOrder. */
-  godIndex: number;
-  /** Игрок, исполняющий текущего бога. */
-  activePlayerId: PlayerId;
-  /** Сколько войск/флота уже нанято в этом ходу (лимит 3 за раз). */
-  recruitedThisTurn: number;
-  /** Уже строил здание в этом ходу? (1 постройка за активацию бога). */
-  hasBuilt: boolean;
+/** Один пункт очереди исполнения действий: бог и его владелец. */
+export interface ActionTurn {
+  god: GodName;
+  playerId: PlayerID;
 }
 
-/** Активная битва (сухопутная или морская). */
-export interface Combat {
-  territoryId: TerritoryId;
-  attackerId: PlayerId;
-  defenderId: PlayerId;
-  attackerUnits: number;
-  defenderUnits: number;
-  /** Бонус защитника от крепостей/портов. */
-  defenderBonus: number;
-  /** Результат последнего броска для показа в UI. */
-  lastRoll?: { attackerRoll: number; defenderRoll: number };
-  /** Чья очередь решать отступление после раунда. */
-  awaitingRetreat: 'defender' | 'attacker' | null;
+/** Состояние фазы действий. */
+export interface ActionsState {
+  /** Очередь «бог → игрок» в порядке исполнения. */
+  queue: ActionTurn[];
+  /** Индекс текущего пункта очереди. */
+  index: number;
+  /** Сколько юнитов нанято в текущей активации бога (лимит за раз). */
+  recruited: number;
+  /** Уже построено здание в текущей активации? */
+  built: boolean;
 }
-
-export type Phase =
-  | { kind: 'lobby' }
-  | { kind: 'income' }
-  | AuctionPhase
-  | (ActionsPhase & { combat?: Combat })
-  | { kind: 'gameOver'; winnerId: PlayerId };
 
 export interface LogEntry {
   cycle: number;
   text: string;
 }
 
-export interface GameState {
-  /** Растёт при каждом применённом действии — для синхронизации. */
-  version: number;
-  players: Player[];
-  /** Посадка за столом (постоянный порядок). */
-  seating: PlayerId[];
-  /** Индекс стартового игрока текущего цикла. */
-  startPlayerIndex: number;
-  cycle: number;
+/** Полное состояние игры (объект G в boardgame.io). */
+export interface CycladesState {
+  players: Record<PlayerID, PlayerData>;
   territories: Record<TerritoryId, Territory>;
-  phase: Phase;
-  /** Состояние детерминированного ГСЧ (для бросков костей). */
-  rngState: number;
+  cycle: number;
+  /** Индекс стартового игрока цикла в ctx.playOrder. Ротация каждый цикл. */
+  startIndex: number;
+  /** Активно во время фазы аукциона. */
+  auction: AuctionState | null;
+  /** Активно во время фазы действий. */
+  actions: ActionsState | null;
   log: LogEntry[];
 }
+
+// --- Константы правил ---
 
 /** Грань боевой кости Cyclades: значения 0,0,1,1,2,3. */
 export const COMBAT_DIE: number[] = [0, 0, 1, 1, 2, 3];
@@ -152,8 +155,17 @@ export const UNIT_SUPPLY = 8;
 /** Сколько единиц можно нанять за одну активацию бога. */
 export const MAX_RECRUIT_PER_TURN = 3;
 
+/** Стоимость постройки здания. */
+export const BUILDING_COST = 2;
+
 /** Метрополий для победы. */
 export const METROPOLIS_TO_WIN = 2;
 
 /** Философов для получения Метрополии. */
 export const PHILOSOPHERS_FOR_METROPOLIS = 4;
+
+/** Стартовое золото игрока. */
+export const STARTING_GOLD = 5;
+
+/** Цвета игроков по индексу посадки. */
+export const PLAYER_COLORS = ['#d64545', '#3b7dd8', '#3fa34d', '#d9a441'];

@@ -1,28 +1,29 @@
 import { Client } from 'boardgame.io/react';
-import { SocketIO } from 'boardgame.io/multiplayer';
+import { Local } from 'boardgame.io/multiplayer';
 import { CycladesGame } from '@cyclades/engine';
 import { Board } from './Board';
 
-const SERVER = import.meta.env.VITE_SERVER ?? 'http://localhost:3001';
-
+// На время разработки используем локальный мультиплеер в браузере: оба «места»
+// игроков синхронизируются между собой без сервера. Сетевую игру с друзьями
+// (SocketIO + лобби по ссылке) подключим на Этапе 3.
 const CycladesClient = Client({
   game: CycladesGame,
   board: Board,
   numPlayers: 2,
-  multiplayer: SocketIO({ server: SERVER }),
+  multiplayer: Local(),
 });
-
-// На время разработки показываем оба «места» игроков рядом, в одной партии,
-// чтобы видеть живую синхронизацию. Лобби по ссылке появится на Этапе 3.
-const DEV_MATCH_ID = 'dev';
 
 export function App() {
   return (
     <div className="app">
       <h1>Cyclades</h1>
+      <p className="hint">
+        Локальный режим: ходите за обоих игроков по очереди. Активная панель — та,
+        чей сейчас ход.
+      </p>
       <div className="seats">
-        <CycladesClient matchID={DEV_MATCH_ID} playerID="0" />
-        <CycladesClient matchID={DEV_MATCH_ID} playerID="1" />
+        <CycladesClient matchID="dev" playerID="0" />
+        <CycladesClient matchID="dev" playerID="1" />
       </div>
     </div>
   );
