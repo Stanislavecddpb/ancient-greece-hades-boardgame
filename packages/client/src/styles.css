@@ -30,8 +30,35 @@ body {
   border: 1px solid #2a3f5a;
   border-radius: 10px;
   padding: 1rem 1.25rem;
-  min-width: 340px;
-  max-width: 420px;
+  width: 460px;
+}
+
+.map {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-bottom: 0.6rem;
+  background: #0c2238;
+  border-radius: 12px;
+}
+.t-name { font-size: 13px; fill: #dce6f2; text-anchor: middle; font-weight: 600; }
+.t-name.dark { fill: #2a2113; }
+.t-pros { font-size: 12px; fill: #6e5a2e; text-anchor: middle; }
+.t-units { font-size: 15px; fill: #eaf1f8; text-anchor: middle; font-weight: 700; }
+.t-units.dark { fill: #1f1a0e; }
+.t-build { font-size: 15px; text-anchor: middle; }
+.node:hover ellipse, .node:hover circle { filter: brightness(1.12); }
+
+.dot {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.sel-hint {
+  font-size: 0.85rem;
+  opacity: 0.85;
 }
 
 .status {

@@ -3,6 +3,7 @@ import type { BoardProps } from 'boardgame.io/react';
 import {
   type CycladesState,
   type GodName,
+  type TerritoryId,
   GOD_BUILDING,
   islandsOf,
   metropolisCount,
@@ -11,27 +12,35 @@ import {
   godLabel,
   recruitCost,
   freeSlots,
+  canPlaceFleet,
+  isIsland,
   isSea,
 } from '@cyclades/engine';
+import { BoardMap } from './BoardMap';
 
 const GOD_EMOJI: Record<GodName, string> = {
   ares: '🗡️', poseidon: '🌊', zeus: '⚡', athena: '🦉', apollo: '☀️',
 };
 
 export function Board({ G, ctx, moves, playerID }: BoardProps<CycladesState>) {
+  const [selected, setSelected] = useState<TerritoryId | null>(null);
+
   if (ctx.gameover) {
     const w = G.players[ctx.gameover.winner];
-    return <div className="panel"><h2>🏆 Победа: {w?.name}</h2></div>;
+    return <div className="board"><h2>🏆 Победа: {w?.name}!</h2></div>;
   }
 
   return (
     <div className="board">
       <div className="status">
-        Цикл {G.cycle} · фаза: <b>{phaseLabel(ctx.phase)}</b>
+        Цикл {G.cycle} · фаза: <b>{phaseLabel(ctx.phase)}</b> · вы: <b>{G.players[playerID ?? '0']?.name}</b>
       </div>
+      <BoardMap G={G} me={playerID} selected={selected} onSelect={setSelected} />
       <PlayersTable G={G} me={playerID} />
       {ctx.phase === 'auction' && <AuctionPanel G={G} me={playerID} moves={moves} />}
-      {ctx.phase === 'actions' && <ActionsPanel G={G} me={playerID} moves={moves} />}
+      {ctx.phase === 'actions' && (
+        <ActionsPanel G={G} me={playerID} moves={moves} selected={selected} />
+      )}
       <EventLog G={G} />
     </div>
   );
@@ -47,12 +56,12 @@ function PlayersTable({ G, me }: { G: CycladesState; me: string | null }) {
   return (
     <table className="players">
       <thead>
-        <tr><th></th><th>🪙</th><th>⚜️</th><th>📜</th><th>🏛️</th><th>о-ва</th></tr>
+        <tr><th></th><th title="золото">🪙</th><th title="жрецы">⚜️</th><th title="философы">📜</th><th title="метрополии">🏛️</th><th title="острова">о-ва</th></tr>
       </thead>
       <tbody>
         {Object.values(G.players).map((p) => (
-          <tr key={p.id} style={{ color: p.color }} className={p.id === me ? 'me' : ''}>
-            <td>{p.name}{p.id === me ? ' (вы)' : ''}</td>
+          <tr key={p.id} className={p.id === me ? 'me' : ''}>
+            <td><span className="dot" style={{ background: p.color }} />{p.name}{p.id === me ? ' (вы)' : ''}</td>
             <td>{p.gold}</td>
             <td>{p.priests}</td>
             <td>{p.philosophers}</td>
@@ -87,9 +96,7 @@ function AuctionPanel({ G, me, moves }: { G: CycladesState; me: string | null; m
               {myTurn && slot.occupantId !== me && (
                 <div className="bid-row">
                   <input
-                    type="number"
-                    min={minBid}
-                    value={val}
+                    type="number" min={minBid} value={val}
                     onChange={(e) => setBids({ ...bids, [slot.god]: Number(e.target.value) })}
                   />
                   <button onClick={() => moves.bidGod(slot.god, val)}>Ставка</button>
@@ -108,56 +115,52 @@ function AuctionPanel({ G, me, moves }: { G: CycladesState; me: string | null; m
   );
 }
 
-function ActionsPanel({ G, me, moves }: { G: CycladesState; me: string | null; moves: any }) {
+function ActionsPanel({
+  G, me, moves, selected,
+}: { G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null }) {
   const turn = currentTurn(G);
-  const active = activePlayerId(G);
   if (!turn) return null;
-  const myTurn = active === me;
+  const myTurn = activePlayerId(G) === me;
   const god = turn.god;
   const s = G.actions!;
-
-  const myIslands = islandsOf(G, turn.playerId);
+  const sel = selected ? G.territories[selected] : null;
   const buildType = GOD_BUILDING[god];
-  const buildable = myIslands.filter((i) => freeSlots(i) > 0 && (!buildType || !i.buildings.some((b) => b.type === buildType)));
-  const seas = Object.values(G.territories).filter(isSea);
+
+  const canRecruitTroop = !!sel && isIsland(sel) && sel.ownerId === turn.playerId;
+  const canRecruitFleet = !!sel && isSea(sel) && canPlaceFleet(G, turn.playerId, sel.id);
+  const canBuildHere =
+    !!sel && isIsland(sel) && sel.ownerId === turn.playerId && freeSlots(sel) > 0 &&
+    !!buildType && !sel.buildings.some((b) => b.type === buildType);
 
   return (
     <div className="panel">
-      <h3>Действия: {GOD_EMOJI[god]} {godLabel(god)} — {myTurn ? 'ваш ход' : G.players[turn.playerId].name}</h3>
+      <h3>{GOD_EMOJI[god]} {godLabel(god)} — {myTurn ? 'ваш ход' : G.players[turn.playerId].name}</h3>
       {myTurn && (
         <div className="actions">
-          {(god === 'ares') && (
-            <div>
-              <span>Войско (след. {recruitCost(god, s.recruited)}🪙):</span>
-              {myIslands.map((i) => (
-                <button key={i.id} onClick={() => moves.recruit(i.id)}>+ на {i.name}</button>
-              ))}
-            </div>
+          <div className="sel-hint">Выбрано: <b>{sel ? sel.name : '— кликните по карте'}</b></div>
+
+          {god === 'ares' && (
+            <button disabled={!canRecruitTroop} onClick={() => moves.recruit(selected)}>
+              ⚔️ Войско на остров ({recruitCost(god, s.recruited)}🪙)
+            </button>
           )}
-          {(god === 'poseidon') && (
-            <div>
-              <span>Флот (след. {recruitCost(god, s.recruited)}🪙):</span>
-              {seas.map((sea) => (
-                <button key={sea.id} onClick={() => moves.recruit(sea.id)}>+ в {sea.name}</button>
-              ))}
-            </div>
+          {god === 'poseidon' && (
+            <button disabled={!canRecruitFleet} onClick={() => moves.recruit(selected)}>
+              ⛵ Флот в море ({recruitCost(god, s.recruited)}🪙)
+            </button>
           )}
-          {(god === 'zeus') && (
-            <button onClick={() => moves.recruit()}>Нанять жреца ({recruitCost(god, s.recruited)}🪙)</button>
+          {god === 'zeus' && (
+            <button onClick={() => moves.recruit()}>⚜️ Нанять жреца ({recruitCost(god, s.recruited)}🪙)</button>
           )}
-          {(god === 'athena') && (
-            <button onClick={() => moves.recruit()}>Нанять философа ({recruitCost(god, s.recruited)}🪙)</button>
+          {god === 'athena' && (
+            <button onClick={() => moves.recruit()}>📜 Нанять философа ({recruitCost(god, s.recruited)}🪙)</button>
           )}
           {buildType && (
-            <div>
-              <span>Построить {buildType} (2🪙):</span>
-              {buildable.length === 0 && <i> нет места</i>}
-              {buildable.map((i) => (
-                <button key={i.id} disabled={s.built} onClick={() => moves.build(i.id)}>на {i.name}</button>
-              ))}
-            </div>
+            <button disabled={!canBuildHere || s.built} onClick={() => moves.build(selected)}>
+              🏗️ Построить {buildType} (2🪙)
+            </button>
           )}
-          <button className="end-turn" onClick={() => moves.endGod()}>Завершить действия</button>
+          <button className="end-turn" onClick={() => moves.endGod()}>Завершить действия →</button>
         </div>
       )}
     </div>
