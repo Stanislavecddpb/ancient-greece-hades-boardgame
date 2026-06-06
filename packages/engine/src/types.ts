@@ -37,10 +37,23 @@ export interface Point {
   y: number;
 }
 
-/** Осевые координаты гекс-сетки (морские клетки и клетки островов). */
-export interface Axial {
-  q: number;
-  r: number;
+/** Координата клетки: номер строки сверху (1..) и номер в строке (1..). */
+export interface GridCoord {
+  row: number;
+  col: number;
+}
+
+/** Клетка суши острова с готовой пиксельной позицией для отрисовки. */
+export interface LandCell {
+  row: number;
+  col: number;
+  pos: Point;
+}
+
+/** Где на острове нарисовать рог(а) изобилия. */
+export interface CornucopiaSpot {
+  pos: Point;
+  count: number;
 }
 
 /** Остров: держит войска, здания и, возможно, Метрополию. Даёт доход. */
@@ -50,10 +63,14 @@ export interface Island {
   name: string;
   /** Центр острова для подписей. */
   pos: Point;
-  /** Клетки гекс-сетки, которые занимает остров (для отрисовки массива суши). */
-  cells: Axial[];
+  /** Клетки суши, которые занимает остров (для отрисовки массива суши). */
+  cells: LandCell[];
   /** Сколько объектов (здания + метрополия) помещается на острове. */
   buildSlots: number;
+  /** Суммарно рогов изобилия на суше острова — доход владельцу. */
+  cornucopia: number;
+  /** Точки отрисовки рогов на суше. */
+  cornucopiaSpots: CornucopiaSpot[];
   adjacentSeas: TerritoryId[];
   // --- динамика ---
   /** Кто контролирует остров (его здания и доход). null — ничей. */
@@ -70,8 +87,8 @@ export interface Sea {
   kind: 'sea';
   name: string;
   pos: Point;
-  /** Осевые координаты клетки в сетке. */
-  axial: Axial;
+  row: number;
+  col: number;
   /** Рог изобилия: золото в фазе дохода тому, чей флот стоит на клетке. */
   cornucopia: number;
   adjacentSeas: TerritoryId[];

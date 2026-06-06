@@ -6,13 +6,13 @@ import {
   type Sea,
   isIsland,
   isSea,
-  axialToPixel,
-  HEX_SIZE,
+  CELL_D,
   BOARD_CENTER,
+  BOARD_RADIUS,
   BOARD_VIEWBOX,
 } from '@cyclades/engine';
 import { SvgDefs } from './art/SvgDefs';
-import { Trireme, Hoplite, BuildingGlyph, Metropolis } from './art/pieces';
+import { Trireme, Hoplite, BuildingGlyph, Metropolis, CoinStack } from './art/pieces';
 
 interface Props {
   G: CycladesState;
@@ -21,9 +21,8 @@ interface Props {
   onSelect: (id: TerritoryId) => void;
 }
 
-const SEA_R = HEX_SIZE * 0.82;
-const LAND_R = HEX_SIZE * 0.84;
-const BOARD_R = BOARD_VIEWBOX / 2 - 18;
+const SEA_R = CELL_D * 0.46;
+const LAND_R = CELL_D * 0.56;
 
 export function BoardMap({ G, me, selected, onSelect }: Props) {
   const territories = Object.values(G.territories);
@@ -35,13 +34,9 @@ export function BoardMap({ G, me, selected, onSelect }: Props) {
     <svg className="map" viewBox={`0 0 ${BOARD_VIEWBOX} ${BOARD_VIEWBOX}`} preserveAspectRatio="xMidYMid meet">
       <SvgDefs />
       <BoardFrame />
-
-      {/* морские клетки */}
       {seas.map((sea) => (
         <SeaCell key={sea.id} sea={sea} G={G} selected={selected === sea.id} color={colorOf(sea.ownerId)} onSelect={onSelect} />
       ))}
-
-      {/* острова поверх */}
       {islands.map((isl) => (
         <IslandNode key={isl.id} isl={isl} G={G} me={me} selected={selected === isl.id} color={colorOf(isl.ownerId)} onSelect={onSelect} />
       ))}
@@ -49,37 +44,16 @@ export function BoardMap({ G, me, selected, onSelect }: Props) {
   );
 }
 
-/** Круглое поле с бронзовой рамкой-меандром и 6 рогами изобилия по краю. */
+/** Круглое поле с бронзовой рамкой-меандром. */
 function BoardFrame() {
   const c = BOARD_CENTER.x;
-  // 6 рогов изобилия равномерно по кольцу (как на оригинальной доске).
-  const cornucopias = [-90, -30, 30, 90, 150, 210];
   return (
     <g>
-      <circle cx={c} cy={c} r={BOARD_R + 14} fill="#caa24f" />
-      <circle cx={c} cy={c} r={BOARD_R + 10} fill="none" stroke="#7a5e26" strokeWidth="2" />
-      {/* меандр — пунктир по кольцу */}
-      <circle cx={c} cy={c} r={BOARD_R + 5} fill="none" stroke="#5e4720" strokeWidth="6"
-        strokeDasharray="10 6" />
-      <circle cx={c} cy={c} r={BOARD_R} fill="url(#boardGlow)" stroke="#3a2c12" strokeWidth="3" />
-      <circle cx={c} cy={c} r={BOARD_R} fill="none" filter="url(#waterTex)" opacity="0.4" />
-      {cornucopias.map((deg) => {
-        const rad = (deg * Math.PI) / 180;
-        const ux = Math.cos(rad), uy = Math.sin(rad); // наружу
-        const tx = -uy, ty = ux; // по касательной
-        // апекс ближе к центру, основание — наружу
-        const apex = { x: c + ux * (BOARD_R - 14), y: c + uy * (BOARD_R - 14) };
-        const b1 = { x: c + ux * (BOARD_R + 12) + tx * 15, y: c + uy * (BOARD_R + 12) + ty * 15 };
-        const b2 = { x: c + ux * (BOARD_R + 12) - tx * 15, y: c + uy * (BOARD_R + 12) - ty * 15 };
-        const mid = { x: c + ux * (BOARD_R + 1), y: c + uy * (BOARD_R + 1) };
-        return (
-          <g key={deg}>
-            <path d={`M${apex.x} ${apex.y} L${b1.x} ${b1.y} L${b2.x} ${b2.y} Z`}
-              fill="#f0e2b8" stroke="#7a5e26" strokeWidth="1.5" />
-            <circle cx={mid.x} cy={mid.y} r="3" fill="#7a5e26" />
-          </g>
-        );
-      })}
+      <circle cx={c} cy={c} r={BOARD_RADIUS + 16} fill="#caa24f" />
+      <circle cx={c} cy={c} r={BOARD_RADIUS + 11} fill="none" stroke="#7a5e26" strokeWidth="2" />
+      <circle cx={c} cy={c} r={BOARD_RADIUS + 6} fill="none" stroke="#5e4720" strokeWidth="6" strokeDasharray="11 7" />
+      <circle cx={c} cy={c} r={BOARD_RADIUS} fill="url(#boardGlow)" stroke="#3a2c12" strokeWidth="3" />
+      <circle cx={c} cy={c} r={BOARD_RADIUS} fill="none" filter="url(#waterTex)" opacity="0.4" />
     </g>
   );
 }
@@ -99,20 +73,20 @@ function SeaCell({ sea, G, selected, color, onSelect }: {
   const { x, y } = sea.pos;
   return (
     <g style={{ cursor: 'pointer' }} onClick={() => onSelect(sea.id)}>
-      <circle cx={x} cy={y} r={SEA_R} fill="#13507a" fillOpacity="0.55"
+      <circle cx={x} cy={y} r={SEA_R} fill="#13507a" fillOpacity="0.5"
         stroke={selected ? '#ffd76a' : sea.fleets > 0 ? color : '#2f6f9e'}
-        strokeWidth={selected ? 4 : 1.5} strokeOpacity={selected ? 1 : 0.6} />
+        strokeWidth={selected ? 4 : 1.4} strokeOpacity={selected ? 1 : 0.55} />
       {sea.cornucopia > 0 && (
-        <g>
-          <circle cx={x} cy={y} r={SEA_R - 4} fill="none" stroke="#e8c451" strokeWidth="2.5" strokeDasharray="5 4" opacity="0.9" />
-          <text x={x} y={y - SEA_R + 22} textAnchor="middle" fontSize="26">🌾</text>
+        <g transform={`translate(${x} ${y})`}>
+          <circle r={SEA_R - 5} fill="none" stroke="#e8c451" strokeWidth="2" strokeDasharray="5 4" opacity="0.85" />
+          <CoinStack count={sea.cornucopia} />
         </g>
       )}
       {sea.fleets > 0 && (
-        <g transform={`translate(${x} ${y})`}>
-          <motion.g initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1.8, opacity: 1 }}>
+        <g transform={`translate(${x} ${y - 2})`}>
+          <motion.g initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1.5, opacity: 1 }}>
             <Trireme color={G.players[sea.ownerId!].color} />
-            {sea.fleets > 1 && <Badge x={16} y={-9} text={sea.fleets} />}
+            {sea.fleets > 1 && <Badge x={15} y={-9} text={sea.fleets} />}
           </motion.g>
         </g>
       )}
@@ -123,49 +97,51 @@ function SeaCell({ sea, G, selected, color, onSelect }: {
 function IslandNode({ isl, G, me, selected, color, onSelect }: {
   isl: Island; G: CycladesState; me: string | null; selected: boolean; color: string; onSelect: (id: TerritoryId) => void;
 }) {
-  const pts = isl.cells.map(axialToPixel);
+  const pts = isl.cells.map((c) => c.pos);
   const { x, y } = isl.pos;
   const owned = isl.ownerId != null;
 
   return (
-    <motion.g initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+    <motion.g initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }}
       style={{ cursor: 'pointer' }} onClick={() => onSelect(isl.id)}>
-      {/* выделение / ободок владельца — слитый ореол */}
       {(selected || owned) && (
         <g filter="url(#goo)">
           {pts.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={LAND_R + 6}
-              fill={selected ? '#ffd76a' : color} opacity={selected ? 0.9 : 0.8} />
+            <circle key={i} cx={p.x} cy={p.y} r={LAND_R + 5} fill={selected ? '#ffd76a' : color} opacity={selected ? 0.9 : 0.8} />
           ))}
         </g>
       )}
-      {/* суша */}
       <g filter="url(#goo)">
-        {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={LAND_R} fill="url(#sandGrad)" />
-        ))}
+        {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={LAND_R} fill="url(#sandGrad)" />)}
       </g>
       <g filter="url(#goo)" opacity="0.5">
-        {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={LAND_R} fill="none" stroke="#8a6a30" strokeWidth="3" />
-        ))}
+        {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={LAND_R} fill="none" stroke="#8a6a30" strokeWidth="3" />)}
       </g>
 
-      <text className="t-name dark" x={x} y={y - LAND_R - 6}>{isl.name}</text>
+      <text className="t-name dark" x={x} y={y - LAND_R - 4}>{isl.name}</text>
 
       {isl.hasMetropolis ? (
         <g transform={`translate(${x} ${y})`}><Metropolis /></g>
       ) : (
         isl.buildings.map((b, i) => {
           const n = isl.buildings.length;
-          const bx = x + (i - (n - 1) / 2) * 26;
-          return <g key={i} transform={`translate(${bx} ${y - 4}) scale(1.35)`}><BuildingGlyph type={b.type} /></g>;
+          const bx = x + (i - (n - 1) / 2) * 24;
+          return <g key={i} transform={`translate(${bx} ${y - 2}) scale(1.3)`}><BuildingGlyph type={b.type} /></g>;
         })
       )}
 
+      {/* рога изобилия на суше — у края клетки */}
+      {isl.cornucopiaSpots.map((s, i) => {
+        const dx = s.pos.x - x, dy = s.pos.y - y;
+        const len = Math.hypot(dx, dy) || 1;
+        const ox = s.pos.x + (dx / len) * (LAND_R * 0.4);
+        const oy = s.pos.y + (dy / len) * (LAND_R * 0.4) + (len < 1 ? LAND_R * 0.4 : 0);
+        return <g key={i} transform={`translate(${ox} ${oy})`}><CoinStack count={s.count} /></g>;
+      })}
+
       {isl.troops > 0 && (
-        <g transform={`translate(${x} ${y + LAND_R - 6})`}>
-          <motion.g initial={{ scale: 0.7 }} animate={{ scale: 1.7 }}>
+        <g transform={`translate(${x} ${y + LAND_R - 4})`}>
+          <motion.g initial={{ scale: 0.7 }} animate={{ scale: 1.6 }}>
             <Hoplite color={G.players[isl.ownerId!].color} />
             {isl.troops > 1 && <Badge x={12} y={-10} text={isl.troops} />}
           </motion.g>

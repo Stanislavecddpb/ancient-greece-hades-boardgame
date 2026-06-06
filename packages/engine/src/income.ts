@@ -9,7 +9,12 @@ import { log } from './helpers';
 export function incomeFor(G: CycladesState, pid: PlayerID): number {
   let sum = 0;
   for (const t of Object.values(G.territories)) {
+    // Рог на воде — доход тому, чей флот на клетке.
     if (isSea(t) && t.cornucopia > 0 && t.ownerId === pid && t.fleets > 0) {
+      sum += t.cornucopia;
+    }
+    // Рог на суше — доход владельцу острова.
+    if (t.kind === 'island' && t.cornucopia > 0 && t.ownerId === pid) {
       sum += t.cornucopia;
     }
   }

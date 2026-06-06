@@ -98,6 +98,23 @@ export function Metropolis() {
   );
 }
 
+/** Рог изобилия — стопка золотых монет (count = сколько стопок). */
+export function CoinStack({ count = 1 }: { count?: number }) {
+  const oneStack = (dx: number) => (
+    <g transform={`translate(${dx} 0)`}>
+      {[0, 1, 2].map((i) => (
+        <ellipse key={i} cx="0" cy={4 - i * 3.2} rx="6.5" ry="2.6"
+          fill="#f0c542" stroke="#9c7416" strokeWidth="0.8" />
+      ))}
+    </g>
+  );
+  return (
+    <g filter="url(#pieceShadow)">
+      {count >= 2 ? (<>{oneStack(-5)}{oneStack(5)}</>) : oneStack(0)}
+    </g>
+  );
+}
+
 const GOD_GLYPH: Record<string, string> = {
   ares: '⚔', poseidon: '🔱', zeus: '⚡', athena: '🦉', apollo: '☀',
 };
