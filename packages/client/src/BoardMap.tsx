@@ -24,9 +24,8 @@ interface Props {
 const SEA_R = CELL_D * 0.46;
 const LAND_R = CELL_D * 0.5;
 
-// Игровые фишки (войска/флот/здания) на карте пока скрыты — включим на этапе
-// движения и боя. Сейчас доска показывает только землю, воду и рога изобилия.
-const SHOW_PIECES = false;
+// Игровые фишки (войска/флот/здания) показываем во время игры.
+const SHOW_PIECES = true;
 
 export function BoardMap({ G, me, selected, onSelect }: Props) {
   const territories = Object.values(G.territories);

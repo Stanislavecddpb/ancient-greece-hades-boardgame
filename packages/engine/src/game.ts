@@ -22,6 +22,9 @@ import {
   endCycle,
 } from './actions';
 import { metropolisCount } from './helpers';
+import { applyFleetMove, applyTroopMove } from './movement';
+import { dieFromRandom } from './combat';
+import type { TerritoryId as TId } from './types';
 
 export const GAME_ID = 'cyclades';
 
@@ -104,6 +107,20 @@ export const CycladesGame: Game<CycladesState> = {
           if (!turn || turn.playerId !== playerID) return INVALID_MOVE;
           const err = applyBuild(G, playerID!, turn.god, islandId);
           if (err) return INVALID_MOVE;
+        },
+
+        // Посейдон: перемещение флота (с возможным морским боем).
+        moveFleet: ({ G, playerID, random }, fromId: TId, toId: TId) => {
+          const turn = currentTurn(G);
+          if (!turn || turn.playerId !== playerID || turn.god !== 'poseidon') return INVALID_MOVE;
+          if (applyFleetMove(G, playerID!, fromId, toId, dieFromRandom(random))) return INVALID_MOVE;
+        },
+
+        // Арес: перемещение войск по «мосту» из флотов (с возможным сухопутным боем).
+        moveTroops: ({ G, playerID, random }, fromId: TId, toId: TId, count: number) => {
+          const turn = currentTurn(G);
+          if (!turn || turn.playerId !== playerID || turn.god !== 'ares') return INVALID_MOVE;
+          if (applyTroopMove(G, playerID!, fromId, toId, count, dieFromRandom(random))) return INVALID_MOVE;
         },
 
         endGod: ({ G, ctx, playerID, events }) => {

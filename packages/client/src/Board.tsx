@@ -13,6 +13,8 @@ import {
   recruitCost,
   freeSlots,
   canPlaceFleet,
+  fleetReachable,
+  troopReachable,
   isIsland,
   isSea,
 } from '@cyclades/engine';
@@ -113,37 +115,73 @@ function AuctionPanel({ G, me, moves }: { G: CycladesState; me: string | null; m
 function ActionsPanel({
   G, me, moves, selected,
 }: { G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null }) {
+  const [troopCount, setTroopCount] = useState(1);
   const turn = currentTurn(G);
   if (!turn) return null;
   const myTurn = activePlayerId(G) === me;
   const god = turn.god;
+  const pid = turn.playerId;
   const s = G.actions!;
   const sel = selected ? G.territories[selected] : null;
   const buildType = GOD_BUILDING[god];
 
-  const canRecruitTroop = !!sel && isIsland(sel) && sel.ownerId === turn.playerId;
-  const canRecruitFleet = !!sel && isSea(sel) && canPlaceFleet(G, turn.playerId, sel.id);
+  const canRecruitTroop = !!sel && isIsland(sel) && sel.ownerId === pid;
+  const canRecruitFleet = !!sel && isSea(sel) && canPlaceFleet(G, pid, sel.id);
   const canBuildHere =
-    !!sel && isIsland(sel) && sel.ownerId === turn.playerId && freeSlots(sel) > 0 &&
+    !!sel && isIsland(sel) && sel.ownerId === pid && freeSlots(sel) > 0 &&
     !!buildType && !sel.buildings.some((b) => b.type === buildType);
+
+  // Достижимые цели для движения от выбранной клетки.
+  const fleetTargets = sel && isSea(sel) && sel.ownerId === pid && sel.fleets > 0
+    ? [...fleetReachable(G, sel.id, pid)] : [];
+  const troopTargets = sel && isIsland(sel) && sel.ownerId === pid && sel.troops > 0
+    ? [...troopReachable(G, sel.id, pid)] : [];
 
   return (
     <div className="panel">
-      <h3>{GOD_EMOJI[god]} {godLabel(god)} — {myTurn ? 'ваш ход' : G.players[turn.playerId].name}</h3>
+      <h3>{GOD_EMOJI[god]} {godLabel(god)} — {myTurn ? 'ваш ход' : G.players[pid].name}</h3>
       {myTurn && (
         <div className="actions">
           <div className="sel-hint">Выбрано: <b>{sel ? sel.name : '— кликните по карте'}</b></div>
 
           {god === 'ares' && (
-            <button disabled={!canRecruitTroop} onClick={() => moves.recruit(selected)}>
-              ⚔️ Войско на остров ({recruitCost(god, s.recruited)}🪙)
-            </button>
+            <>
+              <button disabled={!canRecruitTroop} onClick={() => moves.recruit(selected)}>
+                ⚔️ Войско на остров ({recruitCost(god, s.recruited)}🪙)
+              </button>
+              {troopTargets.length > 0 && (
+                <div className="move-box">
+                  <span>Двинуть войска (
+                    <input type="number" min={1} max={(sel as any).troops} value={troopCount}
+                      onChange={(e) => setTroopCount(Number(e.target.value))} style={{ width: 38 }} />):</span>
+                  {troopTargets.map((id) => (
+                    <button key={id} onClick={() => moves.moveTroops(selected, id, troopCount)}>
+                      → {G.territories[id].name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
+
           {god === 'poseidon' && (
-            <button disabled={!canRecruitFleet} onClick={() => moves.recruit(selected)}>
-              ⛵ Флот в море ({recruitCost(god, s.recruited)}🪙)
-            </button>
+            <>
+              <button disabled={!canRecruitFleet} onClick={() => moves.recruit(selected)}>
+                ⛵ Флот в море ({recruitCost(god, s.recruited)}🪙)
+              </button>
+              {fleetTargets.length > 0 && (
+                <div className="move-box">
+                  <span>Двинуть флот:</span>
+                  {fleetTargets.map((id) => (
+                    <button key={id} onClick={() => moves.moveFleet(selected, id)}>
+                      → {G.territories[id].name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
+
           {god === 'zeus' && (
             <button onClick={() => moves.recruit()}>⚜️ Нанять жреца ({recruitCost(god, s.recruited)}🪙)</button>
           )}

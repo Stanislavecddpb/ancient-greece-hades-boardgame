@@ -58,6 +58,17 @@ body {
   font-size: 0.85rem;
   opacity: 0.85;
 }
+.move-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  background: #11203a;
+  border-radius: 8px;
+  padding: 5px 7px;
+}
+.move-box span { font-size: 0.82rem; }
+.move-box button { background: #3a5a8a; padding: 2px 6px; font-size: 0.78rem; }
 
 .status {
   font-size: 0.95rem;
