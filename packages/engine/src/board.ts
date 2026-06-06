@@ -1,49 +1,68 @@
-import type { Island, Sea, Territory, TerritoryId, Point } from './types';
+import type { Island, Sea, Territory, TerritoryId, Axial, Point } from './types';
 
-// Карта MVP: 9 островов (4 «домашних» по углам, центральный Делос и 4 нейтральных)
-// и 4 морские зоны кольцом вокруг Делоса. Координаты — на холсте ~1000x720.
+// Доска Cyclades: круглое поле, заполненное гекс-сеткой морских клеток-кружков
+// (радиус GRID_RADIUS от центра). Острова — наборы клеток поверх сетки; занятые
+// островами клетки сушей, остальные — морские клетки. Флот ходит по морским
+// клеткам (соседство = 6 направлений), остров соседствует с морскими клетками,
+// которые его касаются.
+
+export const GRID_RADIUS = 3; // 37 клеток (7 в поперечнике), как на оригинале
+export const HEX_SIZE = 60; // радиус-описанная гекса (расстояние центр→угол)
+export const BOARD_CENTER: Point = { x: 450, y: 450 };
+export const BOARD_VIEWBOX = 900;
+
+const SQRT3 = Math.sqrt(3);
+
+/** Осевые координаты → пиксели (pointy-top). */
+export function axialToPixel(a: Axial): Point {
+  return {
+    x: BOARD_CENTER.x + HEX_SIZE * SQRT3 * (a.q + a.r / 2),
+    y: BOARD_CENTER.y + HEX_SIZE * 1.5 * a.r,
+  };
+}
+
+const DIRS: Axial[] = [
+  { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },
+  { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 },
+];
+
+export function hexDistance(a: Axial, b: Axial): number {
+  return (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+}
+
+const key = (a: Axial) => `${a.q}_${a.r}`;
+const seaId = (a: Axial) => `s_${a.q}_${a.r}`;
 
 interface IslandDef {
   id: TerritoryId;
   name: string;
-  pos: Point;
+  cells: [number, number][];
   buildSlots: number;
   prosperity: number;
-  adjacentSeas: TerritoryId[];
 }
 
-interface SeaDef {
-  id: TerritoryId;
-  name: string;
-  pos: Point;
-  adjacentSeas: TerritoryId[];
-  adjacentIslands: TerritoryId[];
-}
-
+// Раскладка на 4 игроков: 4 «домашних» острова по сторонам, Делос в центре,
+// несколько нейтральных. Координаты подобраны на гекс-сетке радиусом 3.
 const ISLAND_DEFS: IslandDef[] = [
-  { id: 'home_0', name: 'Афины', pos: { x: 150, y: 130 }, buildSlots: 4, prosperity: 2, adjacentSeas: ['sea_n', 'sea_w'] },
-  { id: 'home_1', name: 'Спарта', pos: { x: 850, y: 130 }, buildSlots: 4, prosperity: 2, adjacentSeas: ['sea_n', 'sea_e'] },
-  { id: 'home_2', name: 'Коринф', pos: { x: 150, y: 590 }, buildSlots: 4, prosperity: 2, adjacentSeas: ['sea_w', 'sea_s'] },
-  { id: 'home_3', name: 'Фивы', pos: { x: 850, y: 590 }, buildSlots: 4, prosperity: 2, adjacentSeas: ['sea_e', 'sea_s'] },
-  { id: 'delos', name: 'Делос', pos: { x: 500, y: 360 }, buildSlots: 4, prosperity: 3, adjacentSeas: ['sea_n', 'sea_w', 'sea_e', 'sea_s'] },
-  { id: 'naxos', name: 'Наксос', pos: { x: 500, y: 110 }, buildSlots: 3, prosperity: 2, adjacentSeas: ['sea_n'] },
-  { id: 'milos', name: 'Милос', pos: { x: 130, y: 360 }, buildSlots: 3, prosperity: 2, adjacentSeas: ['sea_w'] },
-  { id: 'paros', name: 'Парос', pos: { x: 870, y: 360 }, buildSlots: 3, prosperity: 2, adjacentSeas: ['sea_e'] },
-  { id: 'thira', name: 'Тира', pos: { x: 500, y: 610 }, buildSlots: 3, prosperity: 2, adjacentSeas: ['sea_s'] },
+  { id: 'delos', name: 'Делос', cells: [[0, 0]], buildSlots: 4, prosperity: 3 },
+
+  { id: 'home_n', name: 'Афины', cells: [[0, -3], [1, -3]], buildSlots: 4, prosperity: 2 },
+  { id: 'home_e', name: 'Спарта', cells: [[3, -1], [3, -2]], buildSlots: 4, prosperity: 2 },
+  { id: 'home_s', name: 'Коринф', cells: [[0, 3], [-1, 3]], buildSlots: 4, prosperity: 2 },
+  { id: 'home_w', name: 'Фивы', cells: [[-3, 1], [-3, 2]], buildSlots: 4, prosperity: 2 },
+
+  { id: 'naxos', name: 'Наксос', cells: [[-1, -1]], buildSlots: 3, prosperity: 2 },
+  { id: 'paros', name: 'Парос', cells: [[2, 0]], buildSlots: 3, prosperity: 2 },
+  { id: 'milos', name: 'Милос', cells: [[-2, 2]], buildSlots: 3, prosperity: 2 },
+  { id: 'thira', name: 'Тира', cells: [[1, 1]], buildSlots: 3, prosperity: 1 },
+  { id: 'serifos', name: 'Серифос', cells: [[2, -2]], buildSlots: 2, prosperity: 1 },
 ];
 
-const SEA_DEFS: SeaDef[] = [
-  { id: 'sea_n', name: 'Северное море', pos: { x: 500, y: 225 }, adjacentSeas: ['sea_w', 'sea_e'], adjacentIslands: ['home_0', 'home_1', 'naxos', 'delos'] },
-  { id: 'sea_w', name: 'Западное море', pos: { x: 280, y: 360 }, adjacentSeas: ['sea_n', 'sea_s'], adjacentIslands: ['home_0', 'home_2', 'milos', 'delos'] },
-  { id: 'sea_e', name: 'Восточное море', pos: { x: 720, y: 360 }, adjacentSeas: ['sea_n', 'sea_s'], adjacentIslands: ['home_1', 'home_3', 'paros', 'delos'] },
-  { id: 'sea_s', name: 'Южное море', pos: { x: 500, y: 495 }, adjacentSeas: ['sea_w', 'sea_e'], adjacentIslands: ['home_2', 'home_3', 'thira', 'delos'] },
-];
-
-/** Домашние острова по количеству игроков (индекс = место за столом). */
+/** Домашние острова по количеству игроков. */
 const HOME_ISLANDS: Record<number, TerritoryId[]> = {
-  2: ['home_0', 'home_3'],
-  3: ['home_0', 'home_1', 'home_2'],
-  4: ['home_0', 'home_1', 'home_2', 'home_3'],
+  2: ['home_n', 'home_s'],
+  3: ['home_n', 'home_e', 'home_w'],
+  4: ['home_n', 'home_e', 'home_s', 'home_w'],
 };
 
 export function homeIslandsFor(numPlayers: number): TerritoryId[] {
@@ -52,19 +71,44 @@ export function homeIslandsFor(numPlayers: number): TerritoryId[] {
   return list;
 }
 
-/** Создаёт свежую карту с обнулённой динамикой. */
+function centroid(cells: Axial[]): Point {
+  const pts = cells.map(axialToPixel);
+  return {
+    x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+    y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+  };
+}
+
+/** Создаёт свежую доску: морские клетки + острова, со всей смежностью. */
 export function createBoard(): Record<TerritoryId, Territory> {
+  // 1. Все клетки сетки в круге радиусом GRID_RADIUS.
+  const allCells: Axial[] = [];
+  for (let q = -GRID_RADIUS; q <= GRID_RADIUS; q++) {
+    for (let r = -GRID_RADIUS; r <= GRID_RADIUS; r++) {
+      if (hexDistance({ q, r }, { q: 0, r: 0 }) <= GRID_RADIUS) allCells.push({ q, r });
+    }
+  }
+
+  // 2. Привязка клетка → острову.
+  const cellToIsland = new Map<string, TerritoryId>();
+  for (const def of ISLAND_DEFS) {
+    for (const [q, r] of def.cells) cellToIsland.set(key({ q, r }), def.id);
+  }
+
   const territories: Record<TerritoryId, Territory> = {};
 
+  // 3. Острова.
   for (const def of ISLAND_DEFS) {
+    const cells = def.cells.map(([q, r]) => ({ q, r }));
     const island: Island = {
       id: def.id,
       kind: 'island',
       name: def.name,
-      pos: def.pos,
+      pos: centroid(cells),
+      cells,
       buildSlots: def.buildSlots,
       prosperity: def.prosperity,
-      adjacentSeas: [...def.adjacentSeas],
+      adjacentSeas: [],
       ownerId: null,
       troops: 0,
       buildings: [],
@@ -73,24 +117,44 @@ export function createBoard(): Record<TerritoryId, Territory> {
     territories[def.id] = island;
   }
 
-  for (const def of SEA_DEFS) {
+  // 4. Морские клетки (всё, что не суша).
+  for (const cell of allCells) {
+    if (cellToIsland.has(key(cell))) continue;
     const sea: Sea = {
-      id: def.id,
+      id: seaId(cell),
       kind: 'sea',
-      name: def.name,
-      pos: def.pos,
-      adjacentSeas: [...def.adjacentSeas],
-      adjacentIslands: [...def.adjacentIslands],
+      name: `Море ${cell.q},${cell.r}`,
+      pos: axialToPixel(cell),
+      axial: cell,
+      adjacentSeas: [],
+      adjacentIslands: [],
       ownerId: null,
       fleets: 0,
     };
-    territories[def.id] = sea;
+    territories[sea.id] = sea;
+  }
+
+  // 5. Смежность: для каждой морской клетки смотрим 6 соседей.
+  for (const cell of allCells) {
+    if (cellToIsland.has(key(cell))) continue;
+    const sea = territories[seaId(cell)] as Sea;
+    for (const d of DIRS) {
+      const n = { q: cell.q + d.q, r: cell.r + d.r };
+      const nKey = key(n);
+      const islandId = cellToIsland.get(nKey);
+      if (islandId) {
+        if (!sea.adjacentIslands.includes(islandId)) sea.adjacentIslands.push(islandId);
+        const isl = territories[islandId] as Island;
+        if (!isl.adjacentSeas.includes(sea.id)) isl.adjacentSeas.push(sea.id);
+      } else if (territories[seaId(n)]) {
+        sea.adjacentSeas.push(seaId(n));
+      }
+    }
   }
 
   return territories;
 }
 
-/** Удобный type-guard. */
 export function isIsland(t: Territory): t is Island {
   return t.kind === 'island';
 }

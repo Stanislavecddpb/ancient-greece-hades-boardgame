@@ -45,9 +45,9 @@ describe('интеграция фаз через boardgame.io', () => {
     expect(s.ctx.currentPlayer).toBe('0');
 
     // '0' строит крепость на домашнем острове и завершает активацию.
-    client.moves.build('home_0');
+    client.moves.build('home_n');
     s = client.getState()!;
-    const home0 = s.G.territories['home_0'];
+    const home0 = s.G.territories['home_n'];
     expect(home0.kind === 'island' && home0.buildings.some((b) => b.type === 'fortress')).toBe(true);
 
     client.moves.endGod();

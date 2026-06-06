@@ -43,6 +43,20 @@ export function SvgDefs() {
       <filter id="pieceShadow" x="-60%" y="-60%" width="220%" height="220%">
         <feDropShadow dx="0" dy="1.5" stdDeviation="1.2" floodColor="#04121f" floodOpacity="0.6" />
       </filter>
+
+      {/* «Goo»: сливает группу кружков в единый органический массив суши. */}
+      <filter id="goo" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="blur" />
+        <feColorMatrix in="blur" type="matrix"
+          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10" result="goo" />
+        <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+      </filter>
+
+      <radialGradient id="boardGlow" cx="50%" cy="46%" r="60%">
+        <stop offset="0%" stopColor="#1d6a98" />
+        <stop offset="70%" stopColor="#0f3f63" />
+        <stop offset="100%" stopColor="#08263d" />
+      </radialGradient>
     </defs>
   );
 }

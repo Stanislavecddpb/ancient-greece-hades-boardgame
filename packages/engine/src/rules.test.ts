@@ -37,9 +37,9 @@ describe('setup', () => {
     expect(Object.keys(G.players)).toHaveLength(2);
     expect(G.players['0'].gold).toBe(5);
     // Домашние острова для 2 игроков — по диагонали.
-    expect(G.territories['home_0'].kind === 'island' && G.territories['home_0'].ownerId).toBe('0');
-    expect(G.territories['home_3'].kind === 'island' && G.territories['home_3'].ownerId).toBe('1');
-    const home0 = G.territories['home_0'];
+    expect(G.territories['home_n'].kind === 'island' && G.territories['home_n'].ownerId).toBe('0');
+    expect(G.territories['home_s'].kind === 'island' && G.territories['home_s'].ownerId).toBe('1');
+    const home0 = G.territories['home_n'];
     if (home0.kind === 'island') expect(home0.troops).toBe(3);
     // По одному флоту у каждого где-то стоит.
     const fleets = Object.values(G.territories).filter((t) => t.kind === 'sea' && t.fleets > 0);
@@ -126,11 +126,11 @@ describe('действия', () => {
     const gold0 = G.players['0'].gold;
     const supply0 = G.players['0'].troopsSupply;
 
-    expect(applyRecruit(G, '0', 'ares', 'home_0')).toBeNull(); // 1-й бесплатно
-    expect(applyRecruit(G, '0', 'ares', 'home_0')).toBeNull(); // 2-й за 2
+    expect(applyRecruit(G, '0', 'ares', 'home_n')).toBeNull(); // 1-й бесплатно
+    expect(applyRecruit(G, '0', 'ares', 'home_n')).toBeNull(); // 2-й за 2
     expect(G.players['0'].gold).toBe(gold0 - 2);
     expect(G.players['0'].troopsSupply).toBe(supply0 - 2);
-    const home0 = G.territories['home_0'];
+    const home0 = G.territories['home_n'];
     if (home0.kind === 'island') expect(home0.troops).toBe(5); // было 3 + 2
   });
 
@@ -138,7 +138,7 @@ describe('действия', () => {
     const ctx = ctxFor(2);
     const G = setupGame(ctx);
     actionsState(G, 'ares');
-    expect(applyRecruit(G, '0', 'ares', 'home_3')).not.toBeNull();
+    expect(applyRecruit(G, '0', 'ares', 'home_s')).not.toBeNull();
   });
 
   it('постройка здания стоит 2 и занимает слот; один раз за активацию', () => {
@@ -146,11 +146,11 @@ describe('действия', () => {
     const G = setupGame(ctx);
     actionsState(G, 'ares');
     const gold0 = G.players['0'].gold;
-    expect(applyBuild(G, '0', 'ares', 'home_0')).toBeNull();
+    expect(applyBuild(G, '0', 'ares', 'home_n')).toBeNull();
     expect(G.players['0'].gold).toBe(gold0 - 2);
-    const home0 = G.territories['home_0'];
+    const home0 = G.territories['home_n'];
     if (home0.kind === 'island') expect(home0.buildings.map((b) => b.type)).toContain('fortress');
-    expect(applyBuild(G, '0', 'ares', 'home_0')).not.toBeNull(); // второй раз нельзя
+    expect(applyBuild(G, '0', 'ares', 'home_n')).not.toBeNull(); // второй раз нельзя
   });
 });
 
@@ -158,7 +158,7 @@ describe('Метрополия', () => {
   it('4 типа зданий превращаются в Метрополию', () => {
     const ctx = ctxFor(2);
     const G = setupGame(ctx);
-    const home0 = G.territories['home_0'];
+    const home0 = G.territories['home_n'];
     if (home0.kind === 'island') {
       home0.buildings = (['port', 'fortress', 'temple', 'university'] as const).map((type) => ({ type, ownerId: '0' }));
     }
@@ -182,7 +182,7 @@ describe('победа', () => {
     const ctx = ctxFor(2);
     const G = setupGame(ctx);
     // Две Метрополии на островах игрока '0'.
-    for (const id of ['home_0', 'naxos']) {
+    for (const id of ['home_n', 'naxos']) {
       const isl = G.territories[id];
       if (isl.kind === 'island') {
         isl.ownerId = '0';
@@ -198,7 +198,7 @@ describe('победа', () => {
   it('во время фазы действий победа не засчитывается', () => {
     const ctx = ctxFor(2);
     const G = setupGame(ctx);
-    for (const id of ['home_0', 'naxos']) {
+    for (const id of ['home_n', 'naxos']) {
       const isl = G.territories[id];
       if (isl.kind === 'island') { isl.ownerId = '0'; isl.hasMetropolis = true; }
     }

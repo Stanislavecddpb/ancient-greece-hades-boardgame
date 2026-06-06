@@ -37,12 +37,21 @@ export interface Point {
   y: number;
 }
 
+/** Осевые координаты гекс-сетки (морские клетки и клетки островов). */
+export interface Axial {
+  q: number;
+  r: number;
+}
+
 /** Остров: держит войска, здания и, возможно, Метрополию. Даёт доход. */
 export interface Island {
   id: TerritoryId;
   kind: 'island';
   name: string;
+  /** Центр острова для подписей. */
   pos: Point;
+  /** Клетки гекс-сетки, которые занимает остров (для отрисовки массива суши). */
+  cells: Axial[];
   /** Сколько объектов (здания + метрополия) помещается на острове. */
   buildSlots: number;
   /** Доход золотом владельцу за цикл (рога изобилия). */
@@ -57,12 +66,14 @@ export interface Island {
   hasMetropolis: boolean;
 }
 
-/** Морская зона: держит флот. */
+/** Морская клетка (один кружок сетки): держит флот. */
 export interface Sea {
   id: TerritoryId;
   kind: 'sea';
   name: string;
   pos: Point;
+  /** Осевые координаты клетки в сетке. */
+  axial: Axial;
   adjacentSeas: TerritoryId[];
   adjacentIslands: TerritoryId[];
   // --- динамика ---
