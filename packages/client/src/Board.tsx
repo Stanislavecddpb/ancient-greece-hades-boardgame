@@ -17,6 +17,7 @@ import {
   isSea,
 } from '@cyclades/engine';
 import { BoardMap } from './BoardMap';
+import { GodCard } from './GodCard';
 
 const GOD_EMOJI: Record<GodName, string> = {
   ares: '🗡️', poseidon: '🌊', zeus: '⚡', athena: '🦉', apollo: '☀️',
@@ -76,40 +77,34 @@ function PlayersTable({ G, me }: { G: CycladesState; me: string | null }) {
 
 function AuctionPanel({ G, me, moves }: { G: CycladesState; me: string | null; moves: any }) {
   const a = G.auction;
-  const [bids, setBids] = useState<Record<string, number>>({});
   if (!a) return null;
   const myTurn = a.toAct === me;
 
   return (
     <div className="panel">
-      <h3>Аукцион {myTurn ? '— ваш ход' : `— ходит ${G.players[a.toAct].name}`}</h3>
-      <div className="gods">
-        {a.slots.map((slot) => {
-          const minBid = slot.occupantId ? slot.bid + 1 : 1;
-          const val = bids[slot.god] ?? minBid;
-          return (
-            <div key={slot.god} className="god">
-              <div className="god-name">{GOD_EMOJI[slot.god]} {godLabel(slot.god)}</div>
-              <div className="god-bid">
-                {slot.occupantId ? `${G.players[slot.occupantId].name}: ${slot.bid}🪙` : 'свободно'}
-              </div>
-              {myTurn && slot.occupantId !== me && (
-                <div className="bid-row">
-                  <input
-                    type="number" min={minBid} value={val}
-                    onChange={(e) => setBids({ ...bids, [slot.god]: Number(e.target.value) })}
-                  />
-                  <button onClick={() => moves.bidGod(slot.god, val)}>Ставка</button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <div className="god apollo">
-          <div className="god-name">☀️ Аполлон</div>
-          <div className="god-bid">бесплатно{a.apollo.length ? ` · ${a.apollo.map((p) => G.players[p].name).join(', ')}` : ''}</div>
-          {myTurn && <button onClick={() => moves.chooseApollo()}>Под Аполлона</button>}
-        </div>
+      <h3>Аукцион богов {myTurn ? '— ваш ход' : `— ходит ${G.players[a.toAct].name}`}</h3>
+      <div className="cards">
+        {a.slots.map((slot) => (
+          <GodCard
+            key={slot.god}
+            god={slot.god}
+            occupantName={slot.occupantId ? G.players[slot.occupantId].name : undefined}
+            occupantColor={slot.occupantId ? G.players[slot.occupantId].color : undefined}
+            bid={slot.bid}
+            minBid={slot.occupantId ? slot.bid + 1 : 1}
+            canBid={myTurn && slot.occupantId !== me}
+            onBid={(amount) => moves.bidGod(slot.god, amount)}
+          />
+        ))}
+        <GodCard
+          god="apollo"
+          isApollo
+          apolloNames={a.apollo.map((p) => G.players[p].name)}
+          bid={0}
+          minBid={0}
+          canBid={myTurn}
+          onApollo={() => moves.chooseApollo()}
+        />
       </div>
     </div>
   );
