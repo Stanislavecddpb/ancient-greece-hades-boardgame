@@ -8,6 +8,10 @@ import {
   UNIT_SUPPLY,
 } from './types';
 import { createBoard, islandAtCell, seaAtCell } from './board';
+import { createCreatureMarket } from './creatures';
+
+/** Доступ к перемешиванию из плагина random boardgame.io (опционально). */
+interface RandomAPI { Shuffle?: <T>(a: T[]) => T[] }
 
 // Стартовое размещение по цветам (индекс места): красный, чёрный, синий, жёлтый.
 // soldiers — клетки суши (по 1 войску), ships — морские клетки (по 1 флоту).
@@ -23,7 +27,7 @@ const PLACEMENTS: Placement[] = [
 ];
 
 /** Строит начальное состояние партии под число игроков из ctx. */
-export function setupGame(ctx: Ctx): CycladesState {
+export function setupGame(ctx: Ctx, random?: RandomAPI): CycladesState {
   const territories = createBoard();
   const players: Record<PlayerID, PlayerData> = {};
 
@@ -69,6 +73,7 @@ export function setupGame(ctx: Ctx): CycladesState {
     startIndex: 0,
     auction: null,
     actions: null,
+    creatures: createCreatureMarket(random?.Shuffle),
     log: [{ cycle: 1, text: 'Партия началась. Боги ждут подношений.' }],
   };
 }

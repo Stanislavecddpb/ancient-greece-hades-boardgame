@@ -5,6 +5,8 @@ import {
   type GodName,
   type TerritoryId,
   GOD_BUILDING,
+  CREATURES,
+  creatureCost,
   metropolisCount,
   currentTurn,
   activePlayerId,
@@ -17,12 +19,24 @@ import {
   isIsland,
   isSea,
 } from '@cyclades/engine';
+import type { CreatureDef, Territory } from '@cyclades/engine';
 import { BoardMap } from './BoardMap';
 import { GodBoard } from './GodBoard';
 
 const GOD_EMOJI: Record<GodName, string> = {
   ares: '🗡️', poseidon: '🌊', zeus: '⚡', athena: '🦉', apollo: '☀️',
 };
+
+/** Подходит ли выбранная клетка как цель существа (зеркалит проверку движка). */
+function creatureTargetOk(def: CreatureDef, sel: Territory | null, pid: string): boolean {
+  switch (def.target) {
+    case 'none': return true;
+    case 'own-island': return !!sel && isIsland(sel) && sel.ownerId === pid;
+    case 'own-sea': return !!sel && isSea(sel);
+    case 'enemy-island': return !!sel && isIsland(sel) && !!sel.ownerId && sel.ownerId !== pid && sel.troops > 0;
+    case 'enemy-sea': return !!sel && isSea(sel) && !!sel.ownerId && sel.ownerId !== pid && sel.fleets > 0;
+  }
+}
 
 /** Сетевой режим: «я» — закреплённый за клиентом игрок. */
 export function NetBoard(p: BoardProps<CycladesState>) {
@@ -143,10 +157,44 @@ function ActionBar({ G, me, moves, selected }: {
               {fleetTargets.map((id) => <button key={id} onClick={() => moves.moveFleet(selected, id)}>⛵→ {G.territories[id].name}</button>)}
             </span>
           )}
+          <CreatureButtons G={G} pid={pid} moves={moves} sel={sel} selected={selected} god={god} s={s} />
           <button className="end-turn" onClick={() => moves.endGod()}>Завершить →</button>
         </div>
       )}
     </div>
+  );
+}
+
+function CreatureButtons({ G, pid, moves, sel, selected, god, s }: {
+  G: CycladesState; pid: string; moves: any; sel: Territory | null;
+  selected: TerritoryId | null; god: GodName; s: { creatureBought?: boolean; creatureCycled?: boolean };
+}) {
+  const market = G.creatures.market;
+  if (market.length === 0 && god !== 'zeus') return null;
+  const gold = G.players[pid].gold;
+  return (
+    <span className="creature-buy">
+      {market.map((id, i) => {
+        const d = CREATURES[id];
+        const cost = creatureCost(G, pid, d);
+        const needsTarget = d.target !== 'none';
+        const targetOk = creatureTargetOk(d, sel, pid);
+        const disabled = !!s.creatureBought || gold < cost || (needsTarget && !targetOk);
+        const title = needsTarget && !targetOk ? `выберите цель: ${d.target}` : d.desc;
+        return (
+          <button key={i} className="cr-buy" disabled={disabled} title={title}
+            onClick={() => moves.buyCreature(i, needsTarget ? selected : undefined)}>
+            {d.emblem} {d.name} ({cost}🪙)
+          </button>
+        );
+      })}
+      {god === 'zeus' && (
+        <button className="cr-cycle" disabled={!!s.creatureCycled || gold < 1}
+          onClick={() => moves.cycleCreatures()} title="сбросить рынок и открыть новый">
+          🔄 прокрутить (1🪙)
+        </button>
+      )}
+    </span>
   );
 }
 

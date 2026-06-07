@@ -151,6 +151,20 @@ export interface ActionsState {
   recruited: number;
   /** Уже построено здание в текущей активации? */
   built: boolean;
+  /** Куплено ли существо в текущей активации (одно за ход). */
+  creatureBought?: boolean;
+  /** Прокручена ли колода существ Зевсом в текущей активации. */
+  creatureCycled?: boolean;
+}
+
+/** Рынок мифических существ: колода, открытые карты, сброс. */
+export interface CreatureMarket {
+  /** Колода рубашкой вверх (берём с начала). */
+  deck: string[];
+  /** Открытые существа (до 3) — доступны к покупке. */
+  market: string[];
+  /** Сброшенные/использованные существа. */
+  discard: string[];
 }
 
 export interface LogEntry {
@@ -169,6 +183,8 @@ export interface CycladesState {
   auction: AuctionState | null;
   /** Активно во время фазы действий. */
   actions: ActionsState | null;
+  /** Рынок мифических существ (общий, открытый). */
+  creatures: CreatureMarket;
   log: LogEntry[];
 }
 

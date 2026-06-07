@@ -3,6 +3,8 @@ import {
   type CycladesState,
   type GodName,
   COMPETITIVE_GODS,
+  CREATURES,
+  creatureCost,
 } from '@cyclades/engine';
 
 interface GodData {
@@ -60,7 +62,7 @@ export function GodBoard({ G, ctx, me, moves }: Props) {
     <div className="godboard">
       <div className="gb-top">
         <TurnOrder G={G} ctx={ctx} />
-        <Creatures />
+        <Creatures G={G} me={me} />
       </div>
 
       <div className="gb-gods">
@@ -94,19 +96,30 @@ function TurnOrder({ G, ctx }: { G: CycladesState; ctx: Props['ctx'] }) {
   );
 }
 
-function Creatures() {
+function Creatures({ G, me }: { G: CycladesState; me: string | null }) {
+  const market = G.creatures.market;
   return (
     <div className="creatures">
-      <div className="cr-row">
-        <div className="cr-slot deck">колода</div>
-        <div className="cr-slot grave">кладбище</div>
+      <div className="cr-head">
+        <span className="cr-deck" title="в колоде">🂠 {G.creatures.deck.length}</span>
+        <span className="cr-title">Существа</span>
+        <span className="cr-grave" title="в сбросе">⚰️ {G.creatures.discard.length}</span>
       </div>
       <div className="cr-row">
-        <div className="cr-slot cost">4🪙</div>
-        <div className="cr-slot cost">3🪙</div>
-        <div className="cr-slot cost">2🪙</div>
+        {market.map((id, i) => {
+          const d = CREATURES[id];
+          const cost = me ? creatureCost(G, me, d) : d.cost;
+          return (
+            <div key={i} className="cr-card" title={d.desc}>
+              <div className="cr-emblem">{d.emblem}</div>
+              <div className="cr-name">{d.name}</div>
+              <div className="cr-cost">{cost}🪙</div>
+            </div>
+          );
+        })}
+        {market.length === 0 && <div className="cr-empty">колода пуста</div>}
       </div>
-      <div className="cr-note">🏛️ храм: −1 к цене существ</div>
+      <div className="cr-note">🏛️ храм: −1 к цене · покупка в фазе действий</div>
     </div>
   );
 }

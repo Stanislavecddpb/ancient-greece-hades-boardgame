@@ -109,15 +109,27 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 .to-name { font-size: 0.72rem; opacity: 0.85; }
 
 .creatures { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.cr-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.7rem; }
+.cr-title { font-weight: 700; color: #cdbf9d; }
+.cr-deck { color: #8aa0c0; }
+.cr-grave { color: #a08a7a; }
 .cr-row { display: flex; gap: 4px; }
-.cr-slot {
-  flex: 1; height: 40px; border: 1px dashed #4a5a3a; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center; font-size: 0.66rem; color: #9bb07a;
-  background: #18221a;
+.cr-card {
+  flex: 1; min-width: 0; border: 1px solid #6a5424; border-radius: 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px;
+  background: linear-gradient(160deg, #2a2412, #181208);
 }
-.cr-slot.deck { background: #1a2436; color: #8aa0c0; border-color: #3a4a6a; }
-.cr-slot.cost { background: #221d12; color: #d9b24a; border-color: #6a5424; }
-.cr-note { font-size: 0.66rem; opacity: 0.7; }
+.cr-emblem { font-size: 1.1rem; line-height: 1; }
+.cr-name { font-size: 0.6rem; color: #e8dcb8; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cr-cost { font-size: 0.66rem; font-weight: 800; color: #f0c542; }
+.cr-empty { flex: 1; text-align: center; font-size: 0.66rem; opacity: 0.6; padding: 8px; }
+.cr-note { font-size: 0.62rem; opacity: 0.7; }
+
+/* кнопки покупки существ в нижней панели */
+.creature-buy { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; background: #221d12; border-radius: 8px; padding: 3px 6px; }
+.cr-buy { background: #6a5424; padding: 2px 6px; font-size: 0.76rem; }
+.cr-buy:disabled { opacity: 0.4; }
+.cr-cycle { background: #7a5cb0; padding: 2px 6px; font-size: 0.76rem; }
 
 .gb-gods { display: flex; flex-direction: column; gap: 6px; }
 .god-slot {

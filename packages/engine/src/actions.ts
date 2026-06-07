@@ -46,7 +46,7 @@ export function startActionsPhase(G: CycladesState): void {
       if (slot && slot.occupantId) queue.push({ god, playerId: slot.occupantId });
     }
   }
-  G.actions = { queue, index: 0, recruited: 0, built: false };
+  G.actions = { queue, index: 0, recruited: 0, built: false, creatureBought: false, creatureCycled: false };
 }
 
 /** Текущий пункт очереди действий (бог + игрок) или null. */
@@ -151,6 +151,8 @@ export function advanceTurn(G: CycladesState): boolean {
   s.index += 1;
   s.recruited = 0;
   s.built = false;
+  s.creatureBought = false;
+  s.creatureCycled = false;
   if (s.index >= s.queue.length) {
     G.actions = null;
     return true;

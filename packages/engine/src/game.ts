@@ -22,6 +22,7 @@ import {
   endCycle,
 } from './actions';
 import { metropolisCount } from './helpers';
+import { applyBuyCreature, applyCycleCreatures } from './creatures';
 import { applyFleetMove, applyTroopMove } from './movement';
 import { dieFromRandom } from './combat';
 import type { TerritoryId as TId } from './types';
@@ -38,7 +39,7 @@ function posOf(ctx: Ctx, pid: string | null | undefined): number {
 export const CycladesGame: Game<CycladesState> = {
   name: GAME_ID,
 
-  setup: ({ ctx }) => setupGame(ctx),
+  setup: ({ ctx, random }) => setupGame(ctx, random),
 
   phases: {
     // 1. Аукцион богов. Каждый цикл начинается с начисления дохода, затем игроки
@@ -121,6 +122,20 @@ export const CycladesGame: Game<CycladesState> = {
           const turn = currentTurn(G);
           if (!turn || turn.playerId !== playerID || turn.god !== 'ares') return INVALID_MOVE;
           if (applyTroopMove(G, playerID!, fromId, toId, count, dieFromRandom(random))) return INVALID_MOVE;
+        },
+
+        // Покупка мифического существа с рынка (одно за активацию любого бога).
+        buyCreature: ({ G, playerID }, slotIndex: number, targetId?: TId) => {
+          const turn = currentTurn(G);
+          if (!turn || turn.playerId !== playerID) return INVALID_MOVE;
+          if (applyBuyCreature(G, playerID!, slotIndex, targetId)) return INVALID_MOVE;
+        },
+
+        // Зевс: прокрутить колоду существ за 1 золото.
+        cycleCreatures: ({ G, playerID }) => {
+          const turn = currentTurn(G);
+          if (!turn || turn.playerId !== playerID || turn.god !== 'zeus') return INVALID_MOVE;
+          if (applyCycleCreatures(G, playerID!)) return INVALID_MOVE;
         },
 
         endGod: ({ G, ctx, playerID, events }) => {
