@@ -157,6 +157,24 @@ export interface ActionsState {
   creatureCycled?: boolean;
 }
 
+/** Идёт интерактивный бой: каждый раунд атакующий решает бить дальше или отступить. */
+export interface CombatState {
+  kind: 'land' | 'naval';
+  /** Оспариваемая клетка (остров для суши, море для флота). */
+  location: TerritoryId;
+  /** Откуда пришёл атакующий — куда вернутся выжившие при отступлении. */
+  fromId: TerritoryId;
+  attackerId: PlayerID;
+  defenderId: PlayerID;
+  attackerUnits: number;
+  defenderUnits: number;
+  /** Бонус защитника (крепость/порт). */
+  defenderBonus: number;
+  round: number;
+  /** Результат последнего раунда для интерфейса. */
+  lastRoll: { attacker: number; defender: number; aLost: boolean; dLost: boolean } | null;
+}
+
 /** Рынок мифических существ: колода, открытые карты, сброс. */
 export interface CreatureMarket {
   /** Колода рубашкой вверх (берём с начала). */
@@ -187,6 +205,8 @@ export interface CycladesState {
   creatures: CreatureMarket;
   /** Игрок, который должен поставить рог изобилия (первый выбравший Аполлона). */
   pendingCornucopia: PlayerID | null;
+  /** Текущий бой (пошаговый с возможностью отступления) или null. */
+  combat: CombatState | null;
   log: LogEntry[];
 }
 

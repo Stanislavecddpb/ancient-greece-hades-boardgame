@@ -1,6 +1,6 @@
 import type { CycladesState, PlayerID, TerritoryId, Island } from './types';
 import { isSea, isIsland } from './board';
-import { resolveCombat, type DieRoll } from './combat';
+import { oneRound, type DieRoll } from './combat';
 import { log } from './helpers';
 import { checkMetropolis } from './metropolis';
 
@@ -60,14 +60,14 @@ function navalDefenseBonus(G: CycladesState, seaId: TerritoryId, defenderId: Pla
   return bonus;
 }
 
-/** Двигает весь флот из fromId в toId; при встрече врага — морской бой. */
+/** Двигает весь флот из fromId в toId; при встрече врага — начинает морской бой. */
 export function applyFleetMove(
   G: CycladesState,
   pid: PlayerID,
   fromId: TerritoryId,
   toId: TerritoryId,
-  roll: DieRoll,
 ): string | null {
+  if (G.combat) return 'идёт бой';
   const from = G.territories[fromId];
   const to = G.territories[toId];
   if (!from || !isSea(from) || from.ownerId !== pid || from.fleets <= 0) return 'нет своего флота';
@@ -86,20 +86,18 @@ export function applyFleetMove(
     return null;
   }
 
-  // Морской бой.
+  // Начинаем морской бой: атакующий флот «в пути», управляется через G.combat.
   const defenderId = to.ownerId!;
-  const bonus = navalDefenseBonus(G, toId, defenderId);
-  const res = resolveCombat(moving, to.fleets, bonus, roll);
   from.fleets = 0;
   from.ownerId = null;
-  if (res.attackerLeft > 0) {
-    to.fleets = res.attackerLeft;
-    to.ownerId = pid;
-    log(G, `${G.players[pid].name} побеждает в море у ${to.name} (осталось ${res.attackerLeft} флота).`);
-  } else {
-    to.fleets = res.defenderLeft;
-    log(G, `${G.players[pid].name} разбит в море у ${to.name}; у ${G.players[defenderId].name} осталось ${res.defenderLeft}.`);
-  }
+  G.combat = {
+    kind: 'naval', location: toId, fromId,
+    attackerId: pid, defenderId,
+    attackerUnits: moving, defenderUnits: to.fleets,
+    defenderBonus: navalDefenseBonus(G, toId, defenderId),
+    round: 0, lastRoll: null,
+  };
+  log(G, `${G.players[pid].name} атакует флот у ${to.name} (${moving} против ${to.fleets}).`);
   return null;
 }
 
@@ -137,15 +135,15 @@ export function troopReachable(G: CycladesState, fromIslandId: TerritoryId, pid:
   return result;
 }
 
-/** Двигает count войск с fromIsland на toIsland; при встрече врага — сухопутный бой. */
+/** Двигает count войск с fromIsland на toIsland; при встрече врага — начинает сухопутный бой. */
 export function applyTroopMove(
   G: CycladesState,
   pid: PlayerID,
   fromIslandId: TerritoryId,
   toIslandId: TerritoryId,
   count: number,
-  roll: DieRoll,
 ): string | null {
+  if (G.combat) return 'идёт бой';
   const from = G.territories[fromIslandId];
   const to = G.territories[toIslandId];
   if (!from || !isIsland(from) || from.ownerId !== pid) return 'нет своего острова';
@@ -169,18 +167,82 @@ export function applyTroopMove(
     return null;
   }
 
-  // Сухопутный бой.
+  // Начинаем сухопутный бой: войска «в пути», управляются через G.combat.
   const defenderId = to.ownerId!;
-  const bonus = to.buildings.filter((b) => b.type === 'fortress').length;
-  const res = resolveCombat(count, to.troops, bonus, roll);
-  if (res.attackerLeft > 0) {
-    captureIsland(G, to, pid, res.attackerLeft);
-    log(G, `${G.players[pid].name} берёт остров ${to.name} (осталось ${res.attackerLeft} войск).`);
-    checkMetropolis(G, pid);
-  } else {
-    to.troops = res.defenderLeft;
-    log(G, `Атака на ${to.name} отбита; у ${G.players[defenderId].name} осталось ${res.defenderLeft}.`);
+  G.combat = {
+    kind: 'land', location: toIslandId, fromId: fromIslandId,
+    attackerId: pid, defenderId,
+    attackerUnits: count, defenderUnits: to.troops,
+    defenderBonus: to.buildings.filter((b) => b.type === 'fortress').length,
+    round: 0, lastRoll: null,
+  };
+  log(G, `${G.players[pid].name} штурмует ${to.name} (${count} против ${to.troops}).`);
+  return null;
+}
+
+/** Завершает бой: применяет исход к клетке (победа/поражение/отступление). */
+function finishCombat(G: CycladesState, result: 'attacker' | 'defender' | 'retreat'): void {
+  const c = G.combat;
+  if (!c) return;
+  const loc = G.territories[c.location];
+
+  if (c.kind === 'naval' && isSea(loc)) {
+    if (result === 'attacker') {
+      loc.fleets = c.attackerUnits;
+      loc.ownerId = c.attackerId;
+    } else {
+      loc.fleets = c.defenderUnits;
+      loc.ownerId = loc.fleets > 0 ? c.defenderId : null;
+      if (result === 'retreat') {
+        const src = G.territories[c.fromId];
+        if (src && isSea(src)) { src.fleets += c.attackerUnits; src.ownerId = c.attackerId; }
+      }
+    }
+  } else if (c.kind === 'land' && isIsland(loc)) {
+    if (result === 'attacker') {
+      captureIsland(G, loc, c.attackerId, c.attackerUnits);
+      checkMetropolis(G, c.attackerId);
+    } else {
+      loc.troops = c.defenderUnits; // защитник удерживает остров (контроль остаётся за ним)
+      if (result === 'retreat') {
+        const src = G.territories[c.fromId];
+        if (src && isIsland(src)) src.troops += c.attackerUnits;
+      }
+    }
   }
+  G.combat = null;
+}
+
+/** Один раунд текущего боя; при гибели стороны бой завершается. */
+export function applyCombatRound(G: CycladesState, pid: PlayerID, roll: DieRoll): string | null {
+  const c = G.combat;
+  if (!c) return 'нет боя';
+  if (c.attackerId !== pid) return 'не ваш бой';
+  oneRound(c, roll);
+  // Синхронизируем видимые юниты защитника на клетке.
+  const loc = G.territories[c.location];
+  if (c.kind === 'naval' && isSea(loc)) loc.fleets = c.defenderUnits;
+  if (c.kind === 'land' && isIsland(loc)) loc.troops = c.defenderUnits;
+
+  const locName = loc?.name ?? '?';
+  if (c.defenderUnits <= 0 && c.attackerUnits > 0) {
+    log(G, `${G.players[c.attackerId].name} захватывает ${locName} (осталось ${c.attackerUnits}).`);
+    finishCombat(G, 'attacker');
+  } else if (c.attackerUnits <= 0) {
+    log(G, `Атака на ${locName} отбита; у ${G.players[c.defenderId].name} осталось ${c.defenderUnits}.`);
+    finishCombat(G, 'defender');
+  }
+  return null;
+}
+
+/** Отступление атакующего: выжившие возвращаются на исходную клетку. */
+export function applyCombatRetreat(G: CycladesState, pid: PlayerID): string | null {
+  const c = G.combat;
+  if (!c) return 'нет боя';
+  if (c.attackerId !== pid) return 'не ваш бой';
+  const loc = G.territories[c.location];
+  log(G, `${G.players[c.attackerId].name} отступает от ${loc?.name ?? '?'} (${c.attackerUnits}).`);
+  finishCombat(G, 'retreat');
   return null;
 }
 

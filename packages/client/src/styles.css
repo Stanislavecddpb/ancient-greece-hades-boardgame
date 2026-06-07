@@ -89,6 +89,11 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 .action-bar.prosperity { border-color: #caa24f; box-shadow: 0 0 0 1px #caa24f55, 0 0 18px #caa24f33; }
 .action-bar.prosperity button { background: #b8902f; }
 .action-bar.prosperity button:disabled { opacity: 0.45; }
+.action-bar.combat { border-color: #c0453a; box-shadow: 0 0 0 1px #c0453a55, 0 0 20px #c0453a44; }
+.combat-side { font-weight: 700; }
+.combat-vs { opacity: 0.6; font-size: 0.8rem; }
+.combat-roll { font-size: 0.78rem; opacity: 0.85; background: #2a1414; padding: 2px 7px; border-radius: 6px; }
+.action-bar.combat button { background: #b3602f; }
 
 /* стрелки перемещения */
 .mv-target { fill: #ffd76a; opacity: 0.16; }

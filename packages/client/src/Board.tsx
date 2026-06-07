@@ -82,7 +82,9 @@ function GameView({ G, ctx, moves, me }: { G: CycladesState; ctx: any; moves: an
         <BoardMap G={G} me={me} selected={selected} onSelect={setSelected} movement={movement} />
         <PlayersCorners G={G} ctx={ctx} activeId={activeId} me={me} />
         <div className="phase-tag">Цикл {G.cycle} · {phaseLabel(ctx.phase)}</div>
-        {ctx.phase === 'actions' && G.pendingCornucopia ? (
+        {G.combat ? (
+          <CombatPanel G={G} me={me} moves={moves} />
+        ) : ctx.phase === 'actions' && G.pendingCornucopia ? (
           G.pendingCornucopia === me ? (
             <ProsperityPrompt G={G} me={me} moves={moves} selected={selected} />
           ) : (
@@ -186,6 +188,43 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
           <button className="end-turn" onClick={() => moves.endGod()}>Завершить →</button>
         </div>
       )}
+    </div>
+  );
+}
+
+function CombatPanel({ G, me, moves }: { G: CycladesState; me: string | null; moves: any }) {
+  const c = G.combat!;
+  const loc = G.territories[c.location];
+  const attacker = G.players[c.attackerId];
+  const defender = G.players[c.defenderId];
+  const unit = c.kind === 'naval' ? '⛵' : '⚔️';
+  const myFight = c.attackerId === me;
+  const last = c.lastRoll;
+  return (
+    <div className="action-bar combat">
+      <div className="ab-title">⚔️ Бой за {loc?.name} · раунд {c.round}</div>
+      <div className="ab-controls">
+        <span className="combat-side" style={{ color: attacker.color }}>
+          {attacker.name}: {unit}×{c.attackerUnits}
+        </span>
+        <span className="combat-vs">против</span>
+        <span className="combat-side" style={{ color: defender.color }}>
+          {defender.name}: {unit}×{c.defenderUnits}{c.defenderBonus > 0 ? ` (+${c.defenderBonus}🛡)` : ''}
+        </span>
+        {last && (
+          <span className="combat-roll">
+            раунд: {last.aLost ? `−${unit}атак.` : ''} {last.dLost ? `−${unit}защ.` : ''}{!last.aLost && !last.dLost ? 'без потерь' : ''}
+          </span>
+        )}
+        {myFight ? (
+          <>
+            <button onClick={() => moves.combatRound()}>🎲 Раунд</button>
+            <button className="end-turn" onClick={() => moves.combatRetreat()}>🏳️ Отступить</button>
+          </>
+        ) : (
+          <span className="sel-hint">ход атакующего…</span>
+        )}
+      </div>
     </div>
   );
 }

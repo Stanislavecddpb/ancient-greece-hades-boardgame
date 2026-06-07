@@ -1,7 +1,28 @@
-import { COMBAT_DIE } from './types';
+import { COMBAT_DIE, type CombatState } from './types';
 
 /** Функция броска: возвращает значение грани боевой кости (0,0,1,1,2,3). */
 export type DieRoll = () => number;
+
+/** Результат одного раунда боя. */
+export interface RoundOutcome { attacker: number; defender: number; aLost: boolean; dLost: boolean; }
+
+/**
+ * Один раунд интерактивного боя: бросок + число юнитов (+ бонус защитника).
+ * Мутирует attackerUnits/defenderUnits в CombatState и возвращает итог раунда.
+ */
+export function oneRound(c: CombatState, roll: DieRoll): RoundOutcome {
+  const a = roll() + c.attackerUnits;
+  const d = roll() + c.defenderUnits + c.defenderBonus;
+  let aLost = false, dLost = false;
+  if (a > d) dLost = true;
+  else if (d > a) aLost = true;
+  else { aLost = true; dLost = true; }
+  if (aLost && c.attackerUnits > 0) c.attackerUnits -= 1;
+  if (dLost && c.defenderUnits > 0) c.defenderUnits -= 1;
+  c.round += 1;
+  c.lastRoll = { attacker: c.attackerUnits, defender: c.defenderUnits, aLost, dLost };
+  return c.lastRoll;
+}
 
 /** Создаёт DieRoll поверх boardgame.io random (random.Die(6) → грань кости). */
 export function dieFromRandom(random: { Die: (n: number) => number }): DieRoll {
