@@ -15,53 +15,71 @@ function darken(hex: string, amount = 0.7): string {
 
 const RIM = '#f4f1e6'; // светлый кант для читаемости (особенно для чёрного)
 
-/** Трирема (флот) в цвете игрока; variant 0..3 — разный парус. */
+/** Трирема (флот) в цвете игрока; variant 0..3 — разный парус. Центр (0,0). */
 export function Trireme({ color, variant = 0 }: { color: string; variant?: number }) {
-  const dark = darken(color, 0.62);
+  const dark = darken(color, 0.55);
+  const hull = '#5a3c1e';
   const sail = () => {
     switch (variant % 4) {
-      case 0: return <path d="M0 -12 L9 -3 L0 -3 Z" fill={color} stroke={RIM} strokeWidth="0.7" />; // один треуг.
-      case 1: return <> {/* два паруса */}
-        <path d="M0 -12 L7 -4 L0 -4 Z" fill={color} stroke={RIM} strokeWidth="0.6" />
-        <path d="M0 -8 L-7 -2 L0 -2 Z" fill={color} stroke={RIM} strokeWidth="0.6" /></>;
-      case 2: return <rect x="-6" y="-12" width="12" height="9" rx="1" fill={color} stroke={RIM} strokeWidth="0.7" />; // квадр. парус
-      default: return <path d="M0 -14 L8 -2 L-8 -2 Z" fill={color} stroke={RIM} strokeWidth="0.7" />; // высокий
+      case 0: return <path d="M1 -15 L12 -4 L1 -4 Z" fill={color} stroke={RIM} strokeWidth="0.9" />; // треугольный
+      case 1: return <rect x="-8" y="-15" width="16" height="11" rx="1.5" fill={color} stroke={RIM} strokeWidth="0.9" />; // квадратный
+      case 2: return <path d="M1 -18 L10 -4 L1 -4 Z" fill={color} stroke={RIM} strokeWidth="0.9" />; // высокий
+      default: return <> {/* два паруса */}
+        <path d="M1 -15 L10 -6 L1 -6 Z" fill={color} stroke={RIM} strokeWidth="0.8" />
+        <path d="M-1 -11 L-9 -4 L-1 -4 Z" fill={color} stroke={RIM} strokeWidth="0.8" /></>;
     }
   };
   return (
     <g filter="url(#pieceShadow)">
+      {/* мачта */}
+      <line x1="0" y1="-16" x2="0" y2="-3" stroke="#6b4a25" strokeWidth="1.6" />
       {sail()}
-      <line x1="0" y1="-13" x2="0" y2="-2" stroke={dark} strokeWidth="1.3" />
-      <path d="M-13 -1 C-9 6 9 6 13 -1 L9 3 C4 6 -4 6 -9 3 Z" fill={dark} stroke={RIM} strokeWidth="0.8" />
-      <path d="M-9 1 l-3 3 M-4 2 l-2 3 M4 2 l2 3 M9 1 l3 3" stroke={dark} strokeWidth="0.7" />
+      {/* корпус */}
+      <path d="M-16 -3 L16 -3 L12 7 Q0 10 -12 7 Z" fill={hull} stroke={RIM} strokeWidth="1.1" />
+      {/* борт в цвете игрока */}
+      <path d="M-16 -3 L16 -3 L14 1 L-14 1 Z" fill={color} />
+      {/* вёсла */}
+      <path d="M-11 3 l-3 4 M-6 4 l-2.5 4 M6 4 l2.5 4 M11 3 l3 4" stroke={hull} strokeWidth="1.2" strokeLinecap="round" />
+      {/* нос-таран */}
+      <path d="M16 -3 l5 2.5 l-5 2.5 Z" fill="#caa24f" stroke={RIM} strokeWidth="0.6" />
     </g>
   );
 }
 
-/** Воин (сухопутный отряд) в цвете игрока; variant 0..3 — разное оружие/эмблема. */
+/** Воин (сухопутный отряд) — фигурка человека в цвете игрока; variant 0..3 — оружие. Центр (0,0). */
 export function Hoplite({ color, variant = 0 }: { color: string; variant?: number }) {
-  const dark = darken(color, 0.55);
+  const dark = darken(color, 0.5);
+  const skin = '#eccba0';
+  const steel = '#d4dbe2';
+  const wood = '#7a5a2e';
+  // Оружие в правой руке — разное у разных игроков.
   const weapon = () => {
     switch (variant % 4) {
-      case 0: return <line x1="-8" y1="-10" x2="6" y2="8" stroke="#6a513099" strokeWidth="1.6" />; // копьё
-      case 1: return <><line x1="7" y1="-9" x2="-3" y2="6" stroke="#9aa3ad" strokeWidth="1.8" /><line x1="3" y1="-7" x2="9" y2="-5" stroke="#9aa3ad" strokeWidth="1.6" /></>; // меч
-      case 2: return <><line x1="-8" y1="-10" x2="6" y2="8" stroke="#6a513099" strokeWidth="1.4" /><line x1="8" y1="-10" x2="-6" y2="8" stroke="#6a513099" strokeWidth="1.4" /></>; // два копья
-      default: return <><line x1="6" y1="-10" x2="-2" y2="7" stroke="#9aa3ad" strokeWidth="1.6" /><path d="M3 -10 a4 4 0 1 0 6 2 Z" fill="#9aa3ad" /></>; // топор
-    }
-  };
-  const emblem = () => {
-    switch (variant % 4) {
-      case 0: return <path d="M0 -5 L-3.6 4 M0 -5 L3.6 4" stroke={RIM} strokeWidth="1.5" fill="none" />; // Λ
-      case 1: return <path d="M-3.5 -3 L3.5 4 M3.5 -3 L-3.5 4" stroke={RIM} strokeWidth="1.4" fill="none" />; // X
-      case 2: return <circle r="3.4" fill="none" stroke={RIM} strokeWidth="1.4" />; // O
-      default: return <path d="M0 -4 V4 M-4 0 H4" stroke={RIM} strokeWidth="1.4" />; // +
+      case 0: return <line x1="6.5" y1="-15" x2="6.5" y2="12" stroke={wood} strokeWidth="1.8" strokeLinecap="round" />; // копьё
+      case 1: return <><line x1="6" y1="-2" x2="13" y2="-11" stroke={steel} strokeWidth="2.2" strokeLinecap="round" /><line x1="4.5" y1="-4" x2="8" y2="0.5" stroke={wood} strokeWidth="1.8" /></>; // меч
+      case 2: return <><line x1="6.5" y1="-15" x2="6.5" y2="12" stroke={wood} strokeWidth="1.6" strokeLinecap="round" /><line x1="6.5" y1="-15" x2="3" y2="-12" stroke={steel} strokeWidth="1.4" /></>; // копьё с наконечником
+      default: return <><line x1="8" y1="-14" x2="8" y2="10" stroke={wood} strokeWidth="1.8" strokeLinecap="round" /><path d="M8 -14 q7 1.5 4.5 7.5 q-2.5 -3.5 -4.5 -2.5 Z" fill={steel} stroke={RIM} strokeWidth="0.5" /></>; // топор
     }
   };
   return (
     <g filter="url(#pieceShadow)">
       {weapon()}
-      <circle cx="0" cy="0" r="8" fill={color} stroke={RIM} strokeWidth="1.3" />
-      {emblem()}
+      {/* ноги */}
+      <path d="M-2 7 L-3.2 13.5" stroke={dark} strokeWidth="3" strokeLinecap="round" />
+      <path d="M2 7 L3.2 13.5" stroke={dark} strokeWidth="3" strokeLinecap="round" />
+      {/* туловище — узкая туника в рост */}
+      <path d="M-4 -4 L4 -4 L3.2 7.5 L-3.2 7.5 Z" fill={color} stroke={RIM} strokeWidth="1.1" />
+      {/* плечи/плащ */}
+      <path d="M-5.2 -3.5 Q0 -6.2 5.2 -3.5 L4 -1.5 Q0 -3.6 -4 -1.5 Z" fill={dark} stroke={RIM} strokeWidth="0.6" />
+      {/* круглый щит сбоку (слева), не закрывает корпус */}
+      <ellipse cx="-5.4" cy="1.5" rx="3" ry="4" fill={dark} stroke={RIM} strokeWidth="1" />
+      <ellipse cx="-5.4" cy="1.5" rx="1.1" ry="1.5" fill={color} />
+      {/* голова */}
+      <circle cx="0" cy="-8.5" r="3.4" fill={skin} stroke={RIM} strokeWidth="0.9" />
+      {/* шлем-купол */}
+      <path d="M-3.5 -8.4 A3.5 3.5 0 0 1 3.5 -8.4 L3 -7.6 L-3 -7.6 Z" fill={color} stroke={RIM} strokeWidth="0.7" />
+      {/* гребень шлема */}
+      <path d="M0 -13 Q4.2 -12.4 2.6 -8.4" stroke={dark} strokeWidth="2" fill="none" strokeLinecap="round" />
     </g>
   );
 }

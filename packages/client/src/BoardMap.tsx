@@ -28,6 +28,10 @@ const SHOW_PIECES = true;
 
 const seatOf = (pid: string) => Number(pid);
 
+/** Масштаб фигур в зависимости от их числа в клетке (меньше фишек — крупнее). */
+const fleetScale = (n: number) => (n <= 1 ? 1.05 : n === 2 ? 0.85 : 0.68);
+const troopScale = (n: number) => (n <= 1 ? 1.6 : n === 2 ? 1.35 : 1.15);
+
 /** Смещения для размещения n фишек в клетке. */
 function offsets(n: number, kind: 'troop' | 'fleet'): Array<{ x: number; y: number }> {
   if (kind === 'troop') {
@@ -93,19 +97,21 @@ function SeaCell({ sea, G, selected, color, onSelect }: {
       <circle cx={x} cy={y} r={SEA_R} fill="#13507a" fillOpacity="0.45"
         stroke={selected ? '#ffd76a' : '#2f6f9e'}
         strokeWidth={selected ? 4 : 1.4} strokeOpacity={selected ? 1 : 0.5} />
-      {sea.cornucopia > 0 && (
-        <g transform={`translate(${x} ${y})`}>
-          <CoinStack count={sea.cornucopia} />
-        </g>
-      )}
+      {/* флот: при наличии рога сдвигаем чуть вниз, чтобы монеты были видны сверху */}
       {SHOW_PIECES && sea.fleets > 0 && sea.ownerId && (
         <g>
           {offsets(Math.min(sea.fleets, 4), 'fleet').map((o, i) => (
-            <g key={i} transform={`translate(${x + o.x} ${y + o.y}) scale(0.82)`}>
+            <g key={i} transform={`translate(${x + o.x} ${y + o.y + (sea.cornucopia > 0 ? 6 : 0)}) scale(${fleetScale(sea.fleets)})`}>
               <Trireme color={G.players[sea.ownerId!].color} variant={seatOf(sea.ownerId!)} />
             </g>
           ))}
           {sea.fleets > 4 && <Badge x={x + SEA_R - 4} y={y - SEA_R + 4} text={sea.fleets} />}
+        </g>
+      )}
+      {/* рог изобилия — сверху клетки, поверх кораблей */}
+      {sea.cornucopia > 0 && (
+        <g transform={`translate(${x} ${y - SEA_R * 0.6})`}>
+          <CoinStack count={sea.cornucopia} />
         </g>
       )}
     </g>
@@ -145,13 +151,6 @@ function IslandNode({ isl, G, me, selected, color, onSelect }: {
         ))}
       </g>
 
-      {/* рога изобилия на суше — снизу слева клетки */}
-      {isl.cornucopiaSpots.map((s, i) => (
-        <g key={i} transform={`translate(${s.pos.x - LAND_R * 0.5} ${s.pos.y + LAND_R * 0.45})`}>
-          <CoinStack count={s.count} />
-        </g>
-      ))}
-
       {/* жетон контроля (если островом владеют) */}
       {SHOW_PIECES && owned && (
         <g transform={`translate(${isl.pos.x} ${isl.pos.y - LAND_R * 0.75}) scale(0.9)`}>
@@ -173,13 +172,20 @@ function IslandNode({ isl, G, me, selected, color, onSelect }: {
       {SHOW_PIECES && isl.troops > 0 && isl.ownerId && (
         <g>
           {offsets(Math.min(isl.troops, 3), 'troop').map((o, i) => (
-            <g key={i} transform={`translate(${isl.pos.x + o.x} ${isl.pos.y + LAND_R * 0.45 + o.y}) scale(1.05)`}>
+            <g key={i} transform={`translate(${isl.pos.x + o.x} ${isl.pos.y + LAND_R * 0.3 + o.y}) scale(${troopScale(isl.troops)})`}>
               <Hoplite color={G.players[isl.ownerId!].color} variant={seatOf(isl.ownerId!)} />
             </g>
           ))}
-          {isl.troops > 3 && <Badge x={isl.pos.x + 22} y={isl.pos.y + LAND_R * 0.45 - 12} text={isl.troops} />}
+          {isl.troops > 3 && <Badge x={isl.pos.x + 24} y={isl.pos.y + LAND_R * 0.42 - 14} text={isl.troops} />}
         </g>
       )}
+
+      {/* рога изобилия на суше — поверх фишек, чтобы доход было видно */}
+      {isl.cornucopiaSpots.map((s, i) => (
+        <g key={i} transform={`translate(${s.pos.x - LAND_R * 0.52} ${s.pos.y - LAND_R * 0.4})`}>
+          <CoinStack count={s.count} />
+        </g>
+      ))}
     </motion.g>
   );
 }
