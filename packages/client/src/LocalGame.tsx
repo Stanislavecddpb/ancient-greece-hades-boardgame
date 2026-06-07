@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { Client } from 'boardgame.io/react';
 import { Local } from 'boardgame.io/multiplayer';
 import { CycladesGame } from '@cyclades/engine';
 import { Board } from './Board';
 
-// Хотсит: оба игрока за одним компьютером, синхронизация в браузере без сервера.
+// Хотсит: один экран, переключаем активное «место» кнопкой.
 const LocalClient = Client({
   game: CycladesGame,
   board: Board,
@@ -13,13 +14,15 @@ const LocalClient = Client({
 });
 
 export function LocalGame() {
+  const [seat, setSeat] = useState(0);
   return (
-    <div className="app">
-      <div className="room-bar"><a href="#/" className="back">← выход</a><span>Локальная игра (хотсит)</span></div>
-      <div className="seats">
-        <LocalClient matchID="local" playerID="0" />
-        <LocalClient matchID="local" playerID="1" />
+    <div className="local-wrap">
+      <div className="local-bar">
+        <a href="#/" className="back">← выход</a>
+        <span>Хотсит — место: <b>Игрок {seat + 1}</b></span>
+        <button onClick={() => setSeat((s) => (s + 1) % 2)}>Передать ход →</button>
       </div>
+      <LocalClient key={seat} matchID="local" playerID={String(seat)} />
     </div>
   );
 }

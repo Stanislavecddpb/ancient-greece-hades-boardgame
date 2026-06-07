@@ -24,8 +24,8 @@ interface Props {
 const SEA_R = CELL_D * 0.46;
 const LAND_R = CELL_D * 0.5;
 
-// Игровые фишки (войска/флот/здания) показываем во время игры.
-const SHOW_PIECES = true;
+// Фишки (войска/флот/здания) временно скрыты — доводим интерфейс поля богов.
+const SHOW_PIECES = false;
 
 export function BoardMap({ G, me, selected, onSelect }: Props) {
   const territories = Object.values(G.territories);
