@@ -128,6 +128,7 @@ function GodSlot({ god, G, phase, me, moves }: {
   god: GodName; G: CycladesState; phase: string | null; me: string | null; moves: any;
 }) {
   const d = GOD_DATA[god];
+  const [imgOk, setImgOk] = useState(true);
   const auction = G.auction;
   const isApollo = god === 'apollo';
   const slot = auction?.slots.find((s) => s.god === god);
@@ -139,8 +140,8 @@ function GodSlot({ god, G, phase, me, moves }: {
   const isActiveGod = phase === 'actions' && activeTurn?.god === god;
 
   return (
-    <div className={`god-slot ${isActiveGod ? 'acting' : ''}`} style={{ ['--theme' as any]: d.theme }}>
-      {/* ставочная дорожка */}
+    <div className={`god-slot ${isActiveGod ? 'acting' : ''} ${imgOk ? 'has-img' : ''}`} style={{ ['--theme' as any]: d.theme }}>
+      {/* ставочная дорожка (всегда сверху, кликабельна) */}
       {phase === 'auction' && !isApollo && (
         <BidTrack slotBid={slot?.bid ?? 0} occupant={occupant} canBid={!!myTurn && slot?.occupantId !== me}
           onBid={(amount) => moves.bidGod(god, amount)} />
@@ -149,19 +150,24 @@ function GodSlot({ god, G, phase, me, moves }: {
         <ApolloTrack G={G} canPick={!!myTurn} onPick={() => moves.chooseApollo()} />
       )}
 
-      <div className="gs-body">
-        <div className="gs-emblem">{d.emblem}</div>
-        <div className="gs-main">
-          <div className="gs-title">{d.title}</div>
-          <ul className="gs-abil">
-            {d.abilities.map((a, i) => <li key={i}>{a}</li>)}
-          </ul>
-          {d.build && <div className="gs-build">{d.build}</div>}
+      {/* Арт карточки из фото; при отсутствии файла — текстовое описание. */}
+      {imgOk ? (
+        <img className="gs-img" src={`/gods/${god}.jpg`} alt={d.title} onError={() => setImgOk(false)} />
+      ) : (
+        <div className="gs-body">
+          <div className="gs-emblem">{d.emblem}</div>
+          <div className="gs-main">
+            <div className="gs-title">{d.title}</div>
+            <ul className="gs-abil">
+              {d.abilities.map((a, i) => <li key={i}>{a}</li>)}
+            </ul>
+            {d.build && <div className="gs-build">{d.build}</div>}
+          </div>
         </div>
-        {occupant && phase === 'auction' && (
-          <div className="gs-occ" style={{ color: occupant.color }}>● {occupant.name}: {slot!.bid}🪙</div>
-        )}
-      </div>
+      )}
+      {occupant && phase === 'auction' && (
+        <div className="gs-occ" style={{ color: occupant.color }}>● {occupant.name}: {slot!.bid}🪙</div>
+      )}
     </div>
   );
 }

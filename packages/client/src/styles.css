@@ -143,6 +143,9 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 .cr-cycle { background: #7a5cb0; padding: 2px 6px; font-size: 0.76rem; }
 
 .gb-gods { display: flex; flex-direction: column; gap: 6px; }
+.god-slot.has-img { padding: 3px; position: relative; }
+.gs-img { width: 100%; display: block; border-radius: 7px; }
+.god-slot.has-img .gs-occ { position: absolute; right: 6px; bottom: 5px; background: #000a; padding: 1px 6px; border-radius: 6px; }
 .god-slot {
   border-radius: 10px; padding: 6px;
   background: linear-gradient(160deg, color-mix(in srgb, var(--theme) 60%, #0b1119), color-mix(in srgb, var(--theme) 26%, #0b1119));
