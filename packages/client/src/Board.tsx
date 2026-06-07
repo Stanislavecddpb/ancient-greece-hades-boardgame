@@ -81,8 +81,10 @@ function GameView({ G, ctx, moves, me }: { G: CycladesState; ctx: any; moves: an
   return (
     <div className="game">
       <div className="map-area">
-        <BoardMap G={G} me={me} selected={selected} onSelect={setSelected} movement={movement} />
-        <PlayersCorners G={G} ctx={ctx} activeId={activeId} me={me} />
+        <div className="board-stage">
+          <BoardMap G={G} me={me} selected={selected} onSelect={setSelected} movement={movement} />
+          <PlayersCorners G={G} ctx={ctx} activeId={activeId} me={me} />
+        </div>
         <div className="phase-tag">Цикл {G.cycle} · {phaseLabel(ctx.phase)}</div>
         {G.combat ? (
           <CombatPanel G={G} me={me} moves={moves} />
