@@ -39,6 +39,8 @@ function creatureTargetOk(def: CreatureDef, sel: Territory | null, pid: string):
     case 'own-sea': return !!sel && isSea(sel);
     case 'enemy-island': return !!sel && isIsland(sel) && !!sel.ownerId && sel.ownerId !== pid && sel.troops > 0;
     case 'enemy-sea': return !!sel && isSea(sel) && !!sel.ownerId && sel.ownerId !== pid && sel.fleets > 0;
+    case 'any-island': return !!sel && isIsland(sel);
+    case 'any-sea': return !!sel && isSea(sel);
   }
 }
 

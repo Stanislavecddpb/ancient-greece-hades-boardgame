@@ -8,6 +8,8 @@ import {
   advanceCreatureMarket,
   applyBuyCreature,
   applyCycleCreatures,
+  placeBoardCreature,
+  expireBoardCreatures,
 } from './creatures';
 import type { CycladesState } from './types';
 
@@ -115,15 +117,36 @@ describe('покупка существ', () => {
     expect(applyBuyCreature(G, '0', 1)).toBe('существо уже куплено в этот ход');
   });
 
-  it('Минотавр ставит 2 войска на свой остров', () => {
-    const G = withMarket(['minotaur', 'dryad', 'fates']);
+});
+
+describe('фигуры существ на доске', () => {
+  it('фигурное существо ставится на доску (без мгновенного эффекта), слот — рубашкой', () => {
+    const G = withMarket(['minotaur', 'a', 'b']);
     G.players['0'].gold = 9;
     const isl = G.territories['home_n'];
-    if (isl.kind !== 'island') throw new Error('home_n');
-    const before = isl.troops;
-    const supply = G.players['0'].troopsSupply;
+    const troopsBefore = isl.kind === 'island' ? isl.troops : 0;
     expect(applyBuyCreature(G, '0', 0, 'home_n')).toBeNull();
-    expect(isl.troops).toBe(before + 2);
-    expect(G.players['0'].troopsSupply).toBe(supply - 2);
+    expect(G.boardCreatures).toHaveLength(1);
+    expect(G.boardCreatures[0]).toMatchObject({ kind: 'minotaur', ownerId: '0', location: 'home_n' });
+    expect(G.creatures.market[0]).toBeNull();
+    if (isl.kind === 'island') expect(isl.troops).toBe(troopsBefore); // войска НЕ добавились
+  });
+
+  it('две фигуры на одной клетке уничтожают друг друга', () => {
+    const G = setupGame(ctxFor(2));
+    placeBoardCreature(G, 'minotaur', '0', 'home_n');
+    expect(G.boardCreatures).toHaveLength(1);
+    placeBoardCreature(G, 'chiron', '1', 'home_n');
+    expect(G.boardCreatures).toHaveLength(0);
+  });
+
+  it('фигура снимается в начале хода владельца в следующем цикле', () => {
+    const G = setupGame(ctxFor(2));
+    placeBoardCreature(G, 'minotaur', '0', 'home_n'); // placedCycle = 1
+    G.cycle = 2;
+    expireBoardCreatures(G, '1'); // чужой ход — не снимает
+    expect(G.boardCreatures).toHaveLength(1);
+    expireBoardCreatures(G, '0'); // ход владельца — снимает
+    expect(G.boardCreatures).toHaveLength(0);
   });
 });

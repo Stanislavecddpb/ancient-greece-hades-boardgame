@@ -75,6 +75,7 @@ export function setupGame(ctx: Ctx, random?: RandomAPI): CycladesState {
     auction: null,
     actions: null,
     creatures: createCreatureMarket(random?.Shuffle),
+    boardCreatures: [],
     pendingCornucopia: null,
     combat: null,
     fleetMove: null,

@@ -11,7 +11,9 @@ import { incomeFor } from './income';
 import { checkMetropolis } from './metropolis';
 
 /** Куда нужно нацелить существо при покупке (или none — без цели). */
-export type CreatureTarget = 'none' | 'own-island' | 'own-sea' | 'enemy-island' | 'enemy-sea';
+export type CreatureTarget =
+  | 'none' | 'own-island' | 'own-sea' | 'enemy-island' | 'enemy-sea'
+  | 'any-island' | 'any-sea';
 
 export interface CreatureDef {
   id: string;
@@ -22,7 +24,9 @@ export interface CreatureDef {
   target: CreatureTarget;
   /** Короткое описание эффекта для интерфейса. */
   desc: string;
-  /** Применяет эффект (цель уже проверена снаружи). Возвращает текст ошибки или null. */
+  /** true — существо ставится фигурой на доску (эффект через присутствие), а не мгновенно. */
+  placed?: boolean;
+  /** Применяет мгновенный эффект (для не-«фигурных»). Возвращает текст ошибки или null. */
   apply: (G: CycladesState, pid: PlayerID, targetId?: string) => string | null;
 }
 
@@ -204,66 +208,31 @@ export const CREATURES: Record<string, CreatureDef> = {
       return null;
     },
   },
+  // === Фигурные существа: ставятся на доску, эффект через присутствие ===
   chiron: {
-    id: 'chiron', name: 'Хирон', emblem: '🏹', cost: 2, target: 'own-island',
-    desc: 'Поставьте воина-защитника на свой остров',
-    apply: (G, pid, tid) => {
-      const p = G.players[pid];
-      if (p.troopsSupply <= 0) return 'нет фигурок войск в запасе';
-      const isl = G.territories[tid!];
-      if (!isIsland(isl)) return 'нужен остров';
-      isl.troops += 1; p.troopsSupply -= 1;
-      return null;
-    },
+    id: 'chiron', name: 'Хирон', emblem: '🏹', cost: 2, target: 'any-island', placed: true,
+    desc: 'Фигура на остров: защищает от Пегаса, Гиганта и Гарпии (до след. хода)',
+    apply: () => null,
   },
   medusa: {
-    id: 'medusa', name: 'Медуза', emblem: '🐍', cost: 2, target: 'enemy-island',
-    desc: 'Обратите в камень вражеского воина (−1)',
-    apply: (G, _pid, tid) => {
-      const isl = G.territories[tid!];
-      if (!isIsland(isl) || isl.troops <= 0 || !isl.ownerId) return 'нет вражеского войска';
-      isl.troops -= 1;
-      G.players[isl.ownerId].troopsSupply = Math.min(UNIT_SUPPLY, G.players[isl.ownerId].troopsSupply + 1);
-      return null;
-    },
+    id: 'medusa', name: 'Медуза', emblem: '🐍', cost: 2, target: 'any-island', placed: true,
+    desc: 'Фигура на остров: войска с него нельзя уводить (до след. хода)',
+    apply: () => null,
   },
   minotaur: {
-    id: 'minotaur', name: 'Минотавр', emblem: '🐂', cost: 3, target: 'own-island',
-    desc: 'Призовите 2 воина (защитников) на свой остров',
-    apply: (G, pid, tid) => {
-      const p = G.players[pid];
-      if (p.troopsSupply <= 0) return 'нет фигурок войск в запасе';
-      const isl = G.territories[tid!];
-      if (!isIsland(isl)) return 'нужен остров';
-      const add = Math.min(2, p.troopsSupply);
-      isl.troops += add; p.troopsSupply -= add;
-      return null;
-    },
+    id: 'minotaur', name: 'Минотавр', emblem: '🐂', cost: 3, target: 'any-island', placed: true,
+    desc: 'Фигура на остров: +2 к защите, не отступает (до след. хода)',
+    apply: () => null,
   },
   polyphemus: {
-    id: 'polyphemus', name: 'Полифем', emblem: '👁️', cost: 3, target: 'own-sea',
-    desc: 'Поставьте 2 корабля в свою морскую зону',
-    apply: (G, pid, tid) => {
-      const p = G.players[pid];
-      if (p.fleetsSupply <= 0) return 'нет фигурок флота в запасе';
-      const sea = G.territories[tid!];
-      if (!isSea(sea)) return 'нужна морская зона';
-      const add = Math.min(2, p.fleetsSupply);
-      sea.fleets += add; sea.ownerId = pid; p.fleetsSupply -= add;
-      return null;
-    },
+    id: 'polyphemus', name: 'Полифем', emblem: '👁️', cost: 3, target: 'any-island', placed: true,
+    desc: 'Фигура на остров: флот не может встать в соседних зонах (до след. хода)',
+    apply: () => null,
   },
   kraken: {
-    id: 'kraken', name: 'Кракен', emblem: '🦑', cost: 4, target: 'enemy-sea',
-    desc: 'Уничтожьте весь вражеский флот в морской зоне',
-    apply: (G, _pid, tid) => {
-      const sea = G.territories[tid!];
-      if (!isSea(sea) || sea.fleets <= 0 || !sea.ownerId) return 'нет вражеского флота';
-      const owner = sea.ownerId;
-      G.players[owner].fleetsSupply = Math.min(UNIT_SUPPLY, G.players[owner].fleetsSupply + sea.fleets);
-      sea.fleets = 0; sea.ownerId = null;
-      return null;
-    },
+    id: 'kraken', name: 'Кракен', emblem: '🦑', cost: 4, target: 'any-sea', placed: true,
+    desc: 'Фигура на море: топит флот в зоне; зона закрыта для флота, пока он там',
+    apply: () => null,
   },
 };
 
@@ -349,7 +318,42 @@ function validateTarget(G: CycladesState, pid: PlayerID, def: CreatureDef, tid?:
       return t && isIsland(t) && t.ownerId && t.ownerId !== pid && t.troops > 0 ? null : 'нужен вражеский остров с войсками';
     case 'enemy-sea':
       return t && isSea(t) && t.ownerId && t.ownerId !== pid && t.fleets > 0 ? null : 'нужна вражеская зона с флотом';
+    case 'any-island':
+      return t && isIsland(t) ? null : 'нужно выбрать остров';
+    case 'any-sea':
+      return t && isSea(t) ? null : 'нужно выбрать морскую зону';
   }
+}
+
+/**
+ * Ставит фигуру существа на клетку. Если там уже есть фигура — обе уничтожаются
+ * (новая не ставится). Возвращает локацию (или null, если взаимное уничтожение).
+ */
+export function placeBoardCreature(G: CycladesState, kind: string, ownerId: PlayerID, location: string): void {
+  const loc = G.territories[location];
+  const existing = G.boardCreatures.findIndex((c) => c.location === location);
+  if (existing >= 0) {
+    G.boardCreatures.splice(existing, 1);
+    log(G, `Фигуры существ на ${loc?.name ?? '?'} уничтожают друг друга.`);
+    return;
+  }
+  G.boardCreatures.push({ kind, ownerId, location, placedCycle: G.cycle });
+  log(G, `${G.players[ownerId].name} ставит фигуру (${CREATURES[kind]?.name ?? kind}) на ${loc?.name ?? '?'}.`);
+}
+
+/** Снимает фигуры игрока, поставленные в прошлый цикл (в начале его нового хода). */
+export function expireBoardCreatures(G: CycladesState, pid: PlayerID): void {
+  G.boardCreatures = G.boardCreatures.filter((c) => !(c.ownerId === pid && c.placedCycle < G.cycle));
+}
+
+/** Подстраховка на стыке циклов: убрать фигуры старше текущего цикла. */
+export function cleanupBoardCreatures(G: CycladesState): void {
+  G.boardCreatures = G.boardCreatures.filter((c) => c.placedCycle >= G.cycle);
+}
+
+/** Фигура существа данного вида на клетке (или null). */
+export function boardCreatureAt(G: CycladesState, location: string): { kind: string; ownerId: PlayerID } | null {
+  return G.boardCreatures.find((c) => c.location === location) ?? null;
 }
 
 /**
@@ -372,11 +376,15 @@ export function applyBuyCreature(
   const targetErr = validateTarget(G, pid, def, targetId);
   if (targetErr) return targetErr;
 
-  const applyErr = def.apply(G, pid, targetId);
-  if (applyErr) return applyErr;
+  // «Фигурные» существа ставятся на доску; обычные — мгновенный эффект.
+  if (!def.placed) {
+    const applyErr = def.apply(G, pid, targetId);
+    if (applyErr) return applyErr;
+  }
 
   G.players[pid].gold -= cost;
   s.creatureBought = true;
+  if (def.placed) placeBoardCreature(G, def.id, pid, targetId!);
   // Купленное уходит в сброс, слот остаётся пустым (рубашкой вверх) и НЕ
   // сдвигается. Существо в этот слот придёт при следующей прокрутке (конец
   // хода или Зевс) — туда сдвинется верхнее существо.

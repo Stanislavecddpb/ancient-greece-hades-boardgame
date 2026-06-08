@@ -10,6 +10,7 @@ import {
   BOARD_CENTER,
   BOARD_RADIUS,
   BOARD_VIEWBOX,
+  CREATURES,
 } from '@cyclades/engine';
 import { SvgDefs } from './art/SvgDefs';
 import { Trireme, Hoplite, BuildingGlyph, Metropolis, CoinStack, ControlToken } from './art/pieces';
@@ -80,6 +81,13 @@ export function BoardMap({ G, me, selected, onSelect, movement }: Props) {
       {islands.map((isl) => (
         <IslandNode key={isl.id} isl={isl} G={G} me={me} selected={selected === isl.id} color={colorOf(isl.ownerId)} onSelect={onSelect} />
       ))}
+      {/* Фигуры существ на доске (Минотавр/Хирон/Медуза/Полифем/Кракен). */}
+      {G.boardCreatures.map((bc, i) => {
+        const t = G.territories[bc.location];
+        if (!t) return null;
+        return <CreatureToken key={i} x={t.pos.x} y={t.pos.y - LAND_R * 0.55}
+          color={G.players[bc.ownerId].color} emblem={CREATURES[bc.kind]?.emblem ?? '★'} />;
+      })}
       {movement && <MovementLayer G={G} movement={movement} />}
     </svg>
   );
@@ -130,6 +138,17 @@ function BoardFrame() {
       <circle cx={c} cy={c} r={BOARD_RADIUS + 6} fill="none" stroke="#5e4720" strokeWidth="6" strokeDasharray="11 7" />
       <circle cx={c} cy={c} r={BOARD_RADIUS} fill="url(#boardGlow)" stroke="#3a2c12" strokeWidth="3" />
       <circle cx={c} cy={c} r={BOARD_RADIUS} fill="none" filter="url(#waterTex)" opacity="0.4" />
+    </g>
+  );
+}
+
+/** Жетон фигуры существа на доске: диск цвета владельца + эмблема. */
+function CreatureToken({ x, y, color, emblem }: { x: number; y: number; color: string; emblem: string }) {
+  const r = CELL_D * 0.3;
+  return (
+    <g transform={`translate(${x} ${y})`} filter="url(#pieceShadow)">
+      <circle r={r} fill="#10151c" stroke={color} strokeWidth="3.5" />
+      <text textAnchor="middle" y={r * 0.36} fontSize={r * 1.15}>{emblem}</text>
     </g>
   );
 }

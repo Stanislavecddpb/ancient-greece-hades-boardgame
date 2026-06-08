@@ -193,6 +193,20 @@ export interface FleetMoveState {
   paid: boolean;
 }
 
+/**
+ * Фигура существа, стоящая на доске (Минотавр/Хирон/Медуза/Полифем — на острове,
+ * Кракен — на морской зоне). Действует до начала следующего хода владельца.
+ */
+export interface BoardCreature {
+  /** id существа из каталога. */
+  kind: string;
+  ownerId: PlayerID;
+  /** Клетка (остров или море), где стоит фигура. */
+  location: TerritoryId;
+  /** Цикл установки — для снятия в начале следующего хода владельца. */
+  placedCycle: number;
+}
+
 /** Рынок мифических существ: колода, открытые карты, сброс. */
 export interface CreatureMarket {
   /** Колода рубашкой вверх (берём с начала). */
@@ -223,6 +237,8 @@ export interface CycladesState {
   actions: ActionsState | null;
   /** Рынок мифических существ (общий, открытый). */
   creatures: CreatureMarket;
+  /** Фигуры существ, стоящие на доске (постоянные эффекты до след. хода). */
+  boardCreatures: BoardCreature[];
   /** Игрок, который должен поставить рог изобилия (первый выбравший Аполлона). */
   pendingCornucopia: PlayerID | null;
   /** Текущий бой (пошаговый с возможностью отступления) или null. */

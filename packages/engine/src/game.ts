@@ -24,7 +24,7 @@ import {
 } from './actions';
 import { metropolisCount, islandsOf, log } from './helpers';
 import { applyBuildMetropolis } from './metropolis';
-import { applyBuyCreature, applyCycleCreatures } from './creatures';
+import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures } from './creatures';
 import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat } from './movement';
 import { dieFromRandom } from './combat';
 import type { TerritoryId as TId } from './types';
@@ -111,6 +111,11 @@ export const CycladesGame: Game<CycladesState> = {
       },
       endIf: ({ G }) => G.actions === null,
       turn: {
+        // В начале активации игрока снимаем его фигуры существ, поставленные в прошлый цикл.
+        onBegin: ({ G }) => {
+          const pid = G.pendingCornucopia ?? activePlayerId(G);
+          if (pid) expireBoardCreatures(G, pid);
+        },
         order: {
           // Сначала ходит тот, кто ставит рог изобилия (Аполлон), затем очередь богов.
           first: ({ G, ctx }) => posOf(ctx, G.pendingCornucopia ?? activePlayerId(G)),
