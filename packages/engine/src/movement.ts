@@ -181,9 +181,14 @@ export function applyTroopMove(
   const to = G.territories[toIslandId];
   if (!from || !isIsland(from) || from.ownerId !== pid) return 'нет своего острова';
   if (!to || !isIsland(to)) return 'цель — не остров';
-  if (!Number.isInteger(count) || count < 1 || count > from.troops) return 'неверное число войск';
+  if (!Number.isInteger(count) || count < 1) return 'неверное число войск';
+  if (count > 3) return 'не больше 3 войск за перемещение';
+  if (count > from.troops) return 'столько войск нет на острове';
   if (!troopReachable(G, fromIslandId, pid).has(toIslandId)) return 'недостижимо';
+  if (G.players[pid].gold < 1) return 'нужна 1 монета';
 
+  // Перемещение войск по «мосту» из кораблей стоит 1 монету.
+  G.players[pid].gold -= 1;
   const enemy = to.ownerId != null && to.ownerId !== pid && to.troops > 0;
   from.troops -= count;
 

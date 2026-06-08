@@ -34,9 +34,17 @@ export function hasAllBuildingTypes(G: CycladesState, pid: PlayerID): boolean {
   return ALL_BUILDINGS.every((t) => owned.has(t));
 }
 
+/**
+ * Сколько слотов занимает Метрополия на острове: на островах ≥2 клеток — 2,
+ * на острове из 1 клетки — 1 (весь остров).
+ */
+export function metropolisSlotCost(island: Island): number {
+  return Math.min(2, island.buildSlots);
+}
+
 /** Свободные слоты на острове (с учётом зданий и метрополии). */
 export function freeSlots(island: Island): number {
-  return island.buildSlots - island.buildings.length - (island.hasMetropolis ? 1 : 0);
+  return island.buildSlots - island.buildings.length - (island.hasMetropolis ? metropolisSlotCost(island) : 0);
 }
 
 /** Добавляет запись в журнал событий. */

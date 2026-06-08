@@ -15,6 +15,8 @@ import {
   godLabel,
   recruitCost,
   freeSlots,
+  metropolisSlotCost,
+  canBuildMetropolis,
   canPlaceFleet,
   troopReachable,
   isIsland,
@@ -106,7 +108,7 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
     const targets = isSea(at) ? at.adjacentSeas.filter((id) => isSea(G.territories[id])) : [];
     movement = { from: G.fleetMove.at, targets, onMove: (to) => moves.hopFleet(to, take) };
   } else if (canAct && me && !G.combat && sel && turn!.god === 'ares' && isIsland(sel) && sel.ownerId === me && sel.troops > 0) {
-    const n = Math.min(troopCount, sel.troops);
+    const n = Math.min(troopCount, sel.troops, 3); // не больше 3 войск за перемещение
     const targets = [...troopReachable(G, sel.id, me)];
     if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.moveTroops(sel.id, to, n); setSelected(null); } };
   }
@@ -197,6 +199,11 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
   const troopSource = !!sel && isIsland(sel) && sel.ownerId === pid && sel.troops > 0 && god === 'ares';
   const fleetSource = !!sel && isSea(sel) && sel.ownerId === pid && sel.fleets > 0 && god === 'poseidon';
   const canStartFleet = fleetSource && G.players[pid].gold >= 1;
+  const troopMax = troopSource ? Math.min(3, (sel as any).troops) : 3;
+  // Постройка Метрополии: есть ресурс и выбранный свой остров с местом.
+  const metroReady = canBuildMetropolis(G, pid);
+  const canMetroHere =
+    !!sel && isIsland(sel) && sel.ownerId === pid && !sel.hasMetropolis && freeSlots(sel) >= metropolisSlotCost(sel);
 
   return (
     <div className="action-bar">
@@ -217,11 +224,17 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
           )}
           {troopSource && (
             <span className="move-box">
-              <span>войск:</span>
-              <input type="number" min={1} max={(sel as any).troops} value={troopCount}
-                onChange={(e) => setTroopCount(Math.max(1, Number(e.target.value)))} style={{ width: 40 }} />
-              <span className="sel-hint">{hasMove ? '→ кликните стрелку на карте' : 'нет ходов'}</span>
+              <span>войск (до 3):</span>
+              <input type="number" min={1} max={troopMax} value={Math.min(troopCount, troopMax)}
+                onChange={(e) => setTroopCount(Math.max(1, Math.min(3, Number(e.target.value))))} style={{ width: 40 }} />
+              <span className="sel-hint">{hasMove ? '→ стрелка на карте (1🪙)' : 'нет ходов'}</span>
             </span>
+          )}
+          {metroReady && (
+            <button disabled={!canMetroHere} onClick={() => moves.buildMetropolis(selected)}
+              title="4 разных здания или 4 философа → Метрополия на острове с местом">
+              🏛️ Метрополия
+            </button>
           )}
           {fleetSource && (
             <button disabled={!canStartFleet} onClick={() => moves.startFleetMove(selected)}

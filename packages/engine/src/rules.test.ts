@@ -12,8 +12,8 @@ import {
   paymentFor,
 } from './auction';
 import { applyRecruit, applyBuild, advanceTurn } from './actions';
-import { checkMetropolis } from './metropolis';
-import { metropolisCount, islandsOf } from './helpers';
+import { applyBuildMetropolis, canBuildMetropolis } from './metropolis';
+import { metropolisCount, islandsOf, freeSlots } from './helpers';
 import { CycladesGame } from './game';
 import type { CycladesState } from './types';
 
@@ -205,25 +205,46 @@ describe('действия', () => {
 });
 
 describe('Метрополия', () => {
-  it('4 типа зданий превращаются в Метрополию', () => {
+  it('4 типа зданий позволяют построить Метрополию вручную (здания расходуются)', () => {
     const ctx = ctxFor(2);
     const G = setupGame(ctx);
     const home0 = G.territories['home_n'];
     if (home0.kind === 'island') {
       home0.buildings = (['port', 'fortress', 'temple', 'university'] as const).map((type) => ({ type, ownerId: '0' }));
     }
-    checkMetropolis(G, '0');
+    expect(canBuildMetropolis(G, '0')).toBe(true);
+    // Строим на Серифосе (1 клетка, тоже у красного) — там есть место.
+    expect(applyBuildMetropolis(G, '0', 'serifos')).toBeNull();
     expect(metropolisCount(G, '0')).toBe(1);
-    if (home0.kind === 'island') expect(home0.buildings).toHaveLength(0); // здания израсходованы
+    if (home0.kind === 'island') expect(home0.buildings).toHaveLength(0); // по одному каждого типа израсходовано
   });
 
-  it('4 философа превращаются в Метрополию', () => {
+  it('4 философа позволяют построить Метрополию вручную', () => {
     const ctx = ctxFor(2);
     const G = setupGame(ctx);
     G.players['0'].philosophers = 4;
-    checkMetropolis(G, '0');
+    expect(applyBuildMetropolis(G, '0', 'home_n')).toBeNull();
     expect(metropolisCount(G, '0')).toBe(1);
     expect(G.players['0'].philosophers).toBe(0);
+  });
+
+  it('без ресурса и без места Метрополию не построить', () => {
+    const ctx = ctxFor(2);
+    const G = setupGame(ctx);
+    expect(applyBuildMetropolis(G, '0', 'home_n')).toBe('нужны 4 разных здания или 4 философа');
+    // место: на острове из 1 клетки с одним зданием места под Метрополию нет
+    const serifos = G.territories['serifos'];
+    if (serifos.kind === 'island') serifos.buildings = [{ type: 'temple', ownerId: '0' }];
+    G.players['0'].philosophers = 4;
+    expect(applyBuildMetropolis(G, '0', 'serifos')).toBe('на острове нет места под Метрополию');
+  });
+
+  it('слоты: метрополия занимает 2 слота на острове ≥2 клеток, 1 — на одноклеточном', () => {
+    const G = setupGame(ctxFor(2));
+    const naxos = G.territories['naxos']; // 2 клетки
+    const serifos = G.territories['serifos']; // 1 клетка
+    if (naxos.kind === 'island') { naxos.ownerId = '0'; naxos.hasMetropolis = true; expect(freeSlots(naxos)).toBe(0); }
+    if (serifos.kind === 'island') { serifos.ownerId = '0'; serifos.hasMetropolis = true; expect(freeSlots(serifos)).toBe(0); }
   });
 });
 

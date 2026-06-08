@@ -28,22 +28,22 @@ interface IslandDef {
   id: TerritoryId;
   name: string;
   cells: [number, number][];
-  buildSlots: number;
 }
 
 // Острова — связные группы клеток суши из спецификации.
+// Число слотов под застройку = число клеток острова.
 const ISLAND_DEFS: IslandDef[] = [
-  { id: 'home_n', name: 'Афины', cells: [[2, 1], [2, 2], [3, 1], [3, 2]], buildSlots: 4 },
-  { id: 'home_e', name: 'Спарта', cells: [[3, 5], [3, 6]], buildSlots: 3 },
-  { id: 'home_w', name: 'Коринф', cells: [[7, 1], [8, 1], [8, 2]], buildSlots: 4 },
-  { id: 'home_s', name: 'Фивы', cells: [[7, 8], [8, 7], [9, 6], [10, 5]], buildSlots: 4 },
+  { id: 'home_n', name: 'Афины', cells: [[2, 1], [2, 2], [3, 1], [3, 2]] },
+  { id: 'home_e', name: 'Спарта', cells: [[3, 5], [3, 6]] },
+  { id: 'home_w', name: 'Коринф', cells: [[7, 1], [8, 1], [8, 2]] },
+  { id: 'home_s', name: 'Фивы', cells: [[7, 8], [8, 7], [9, 6], [10, 5]] },
 
-  { id: 'delos', name: 'Делос', cells: [[4, 4], [5, 5]], buildSlots: 3 },
-  { id: 'naxos', name: 'Наксос', cells: [[6, 4], [7, 4]], buildSlots: 3 },
-  { id: 'milos', name: 'Милос', cells: [[5, 2]], buildSlots: 2 },
-  { id: 'paros', name: 'Парос', cells: [[5, 7]], buildSlots: 2 },
-  { id: 'serifos', name: 'Серифос', cells: [[7, 6]], buildSlots: 2 },
-  { id: 'thira', name: 'Тира', cells: [[9, 3], [10, 2], [10, 3]], buildSlots: 3 },
+  { id: 'delos', name: 'Делос', cells: [[4, 4], [5, 5]] },
+  { id: 'naxos', name: 'Наксос', cells: [[6, 4], [7, 4]] },
+  { id: 'milos', name: 'Милос', cells: [[5, 2]] },
+  { id: 'paros', name: 'Парос', cells: [[5, 7]] },
+  { id: 'serifos', name: 'Серифос', cells: [[7, 6]] },
+  { id: 'thira', name: 'Тира', cells: [[9, 3], [10, 2], [10, 3]] },
 ];
 
 // Рога изобилия: число рогов на клетке (строка, номер). 6 на воде по краям + на суше.
@@ -106,7 +106,7 @@ export function createBoard(): Record<TerritoryId, Territory> {
       name: def.name,
       pos: centroid(landCells.map((c) => c.pos)),
       cells: landCells,
-      buildSlots: def.buildSlots,
+      buildSlots: def.cells.length,
       cornucopia: cornTotal,
       cornucopiaSpots: spots,
       adjacentSeas: [],

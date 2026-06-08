@@ -1,10 +1,6 @@
-import { type CycladesState, type PlayerID, ALL_BUILDINGS, PHILOSOPHERS_FOR_METROPOLIS } from './types';
-import { islandsOf, hasAllBuildingTypes, freeSlots, log } from './helpers';
-
-/** Находит остров игрока со свободным слотом без Метрополии. */
-function islandWithFreeSlot(G: CycladesState, pid: PlayerID) {
-  return islandsOf(G, pid).find((i) => !i.hasMetropolis && freeSlots(i) > 0);
-}
+import { type CycladesState, type PlayerID, type TerritoryId, ALL_BUILDINGS, PHILOSOPHERS_FOR_METROPOLIS } from './types';
+import { islandsOf, hasAllBuildingTypes, freeSlots, metropolisSlotCost, log } from './helpers';
+import { isIsland } from './board';
 
 /** Снимает по одному зданию каждого из 4 типов (с любых островов игрока). */
 function consumeOneOfEachBuilding(G: CycladesState, pid: PlayerID): void {
@@ -20,34 +16,35 @@ function consumeOneOfEachBuilding(G: CycladesState, pid: PlayerID): void {
   }
 }
 
-function placeMetropolis(G: CycladesState, pid: PlayerID, reason: string): boolean {
-  const island = islandWithFreeSlot(G, pid);
-  if (!island) return false;
-  island.hasMetropolis = true;
-  log(G, `${G.players[pid].name} строит Метрополию на острове ${island.name} (${reason}).`);
-  return true;
+/** Может ли игрок сейчас построить Метрополию: 4 разных здания или 4 философа. */
+export function canBuildMetropolis(G: CycladesState, pid: PlayerID): boolean {
+  return hasAllBuildingTypes(G, pid) || G.players[pid].philosophers >= PHILOSOPHERS_FOR_METROPOLIS;
 }
 
 /**
- * Проверяет и применяет образование Метрополий для игрока:
- * либо все 4 типа зданий, либо 4 философа. Вызывать после каждого действия,
- * которое строит здание или нанимает философа.
+ * Ручная постройка Метрополии на выбранном своём острове, где есть место.
+ * Тратит ресурс: либо по одному зданию каждого типа, либо 4 философов.
+ * Возвращает текст ошибки или null при успехе.
  */
-export function checkMetropolis(G: CycladesState, pid: PlayerID): void {
-  // Путь зданий: пока есть все 4 типа и куда поставить.
-  while (hasAllBuildingTypes(G, pid)) {
-    // Сначала освобождаем слот, снимая здания, затем ставим Метрополию.
-    consumeOneOfEachBuilding(G, pid);
-    if (!placeMetropolis(G, pid, '4 здания')) break;
-  }
+export function applyBuildMetropolis(G: CycladesState, pid: PlayerID, islandId: TerritoryId): string | null {
+  const isl = G.territories[islandId];
+  if (!isl || !isIsland(isl) || isl.ownerId !== pid) return 'нужен свой остров';
+  if (isl.hasMetropolis) return 'на острове уже есть Метрополия';
+  if (freeSlots(isl) < metropolisSlotCost(isl)) return 'на острове нет места под Метрополию';
 
-  // Путь философов.
-  while (G.players[pid].philosophers >= PHILOSOPHERS_FOR_METROPOLIS) {
-    G.players[pid].philosophers -= PHILOSOPHERS_FOR_METROPOLIS;
-    if (!placeMetropolis(G, pid, '4 философа')) {
-      // Некуда ставить — возвращаем философов и выходим.
-      G.players[pid].philosophers += PHILOSOPHERS_FOR_METROPOLIS;
-      break;
-    }
-  }
+  const byBuildings = hasAllBuildingTypes(G, pid);
+  const byPhilosophers = G.players[pid].philosophers >= PHILOSOPHERS_FOR_METROPOLIS;
+  if (!byBuildings && !byPhilosophers) return 'нужны 4 разных здания или 4 философа';
+
+  if (byBuildings) consumeOneOfEachBuilding(G, pid);
+  else G.players[pid].philosophers -= PHILOSOPHERS_FOR_METROPOLIS;
+
+  isl.hasMetropolis = true;
+  log(G, `${G.players[pid].name} строит Метрополию на острове ${isl.name}.`);
+  return null;
+}
+
+/** Совместимость: Метрополия больше не образуется автоматически (строится вручную). */
+export function checkMetropolis(_G: CycladesState, _pid: PlayerID): void {
+  /* no-op */
 }
