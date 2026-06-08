@@ -24,7 +24,7 @@ import {
 } from './actions';
 import { metropolisCount, islandsOf, log } from './helpers';
 import { applyBuildMetropolis } from './metropolis';
-import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits, applyChimeraReplay, endChimera } from './creatures';
+import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits, applyChimeraReplay, endChimera, applySatyrSteal, endSatyr, applyCyclopsReplace, endCyclops } from './creatures';
 import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus, applyPegasusMove, endPegasus } from './movement';
 import { dieFromRandom } from './combat';
 import type { TerritoryId as TId } from './types';
@@ -232,6 +232,22 @@ export const CycladesGame: Game<CycladesState> = {
         // Химера: отказаться разыгрывать (просто перетасовать сброс в колоду).
         endChimera: ({ G, playerID }) => {
           if (endChimera(G, playerID!)) return INVALID_MOVE;
+        },
+
+        // Сатир: украсть философа у выбранного соперника.
+        satyrSteal: ({ G, playerID }, victimId: string) => {
+          if (applySatyrSteal(G, playerID!, victimId)) return INVALID_MOVE;
+        },
+        endSatyr: ({ G, playerID }) => {
+          if (endSatyr(G, playerID!)) return INVALID_MOVE;
+        },
+
+        // Циклоп: заменить выбранное здание острова на здание другого типа.
+        cyclopsReplace: ({ G, playerID }, buildingIndex: number, type: any) => {
+          if (applyCyclopsReplace(G, playerID!, buildingIndex, type)) return INVALID_MOVE;
+        },
+        endCyclops: ({ G, playerID }) => {
+          if (endCyclops(G, playerID!)) return INVALID_MOVE;
         },
 
         // Аполлон: первый выбравший кладёт рог изобилия на свой остров.

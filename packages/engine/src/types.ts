@@ -171,8 +171,8 @@ export interface CombatState {
   /** Бонус защитника (крепость/порт). */
   defenderBonus: number;
   round: number;
-  /** Результат последнего раунда для интерфейса. */
-  lastRoll: { attacker: number; defender: number; aLost: boolean; dLost: boolean } | null;
+  /** Результат последнего раунда для интерфейса (aDie/dDie — выпавшие грани кости). */
+  lastRoll: { attacker: number; defender: number; aDie: number; dDie: number; aLost: boolean; dLost: boolean } | null;
 }
 
 /**
@@ -219,6 +219,12 @@ export interface PolyphemusPushState {
   playerId: PlayerID;
   /** Остров с Полифемом — от него отталкиваем. */
   island: TerritoryId;
+}
+
+/** Циклоп: выбран свой остров, идёт замена одного из его зданий на другой тип. */
+export interface CyclopsSwapState {
+  playerId: PlayerID;
+  islandId: TerritoryId;
 }
 
 /** Рынок мифических существ: колода, открытые карты, сброс. */
@@ -269,6 +275,10 @@ export interface CycladesState {
   pegasusMove: PlayerID | null;
   /** Игрок, выбирающий существо из сброса (Химера), или null. */
   chimeraPick: PlayerID | null;
+  /** Игрок, выбирающий у кого украсть философа (Сатир), или null. */
+  satyrSteal: PlayerID | null;
+  /** Замена здания Циклопом (выбран остров, идёт выбор типа) или null. */
+  cyclopsSwap: CyclopsSwapState | null;
   log: LogEntry[];
 }
 

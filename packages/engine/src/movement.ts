@@ -224,23 +224,49 @@ export function endPolyphemus(G: CycladesState, pid: PlayerID): string | null {
 }
 
 /**
- * Пегас: переброска войск с одного своего острова на другой без «моста» из флотов
- * (и без боя — только между своими островами). Один перенос, затем режим закрывается.
+ * Пегас: переброска войск со своего острова на любой остров без «моста» из флотов
+ * и без оплаты. На своём/пустом острове — просто высадка; на вражеском с войсками —
+ * начинается сухопутный бой. Режим закрывается после переброски.
  */
 export function applyPegasusMove(
   G: CycladesState, pid: PlayerID, fromIslandId: TerritoryId, toIslandId: TerritoryId, count: number,
 ): string | null {
   if (G.pegasusMove !== pid) return 'нет переброски Пегаса';
+  if (G.combat) return 'идёт бой';
   const from = G.territories[fromIslandId];
   const to = G.territories[toIslandId];
   if (!from || !isIsland(from) || from.ownerId !== pid || from.troops <= 0) return 'нет своего острова с войсками';
-  if (!to || !isIsland(to) || to.ownerId !== pid) return 'цель — не ваш остров';
+  if (!to || !isIsland(to)) return 'цель — не остров';
   if (fromIslandId === toIslandId) return 'нужен другой остров';
   if (!Number.isInteger(count) || count < 1 || count > from.troops) return 'неверное число войск';
+  // Хирон на острове-цели защищает от Пегаса.
+  if (boardCreatureAt(G, toIslandId)?.kind === 'chiron') return 'остров под защитой Хирона';
+
+  const enemy = to.ownerId != null && to.ownerId !== pid && to.troops > 0;
   from.troops -= count;
-  to.troops += count;
-  log(G, `${G.players[pid].name}: Пегас переносит ${count} войск → ${to.name}.`);
   G.pegasusMove = null;
+
+  if (!enemy) {
+    if (to.ownerId == null || to.ownerId === pid) {
+      to.troops += count;
+      to.ownerId = pid;
+    } else {
+      captureIsland(G, to, pid, count); // вражеский, но без войск — захват
+    }
+    log(G, `${G.players[pid].name}: Пегас переносит ${count} войск → ${to.name}.`);
+    return null;
+  }
+
+  // Вражеский остров с войсками — начинается бой (как при наземном перемещении).
+  const minotaurBonus = boardCreatureAt(G, toIslandId)?.kind === 'minotaur' ? 2 : 0;
+  G.combat = {
+    kind: 'land', location: toIslandId, fromId: fromIslandId,
+    attackerId: pid, defenderId: to.ownerId!,
+    attackerUnits: count, defenderUnits: to.troops,
+    defenderBonus: to.buildings.filter((b) => b.type === 'fortress').length + minotaurBonus,
+    round: 0, lastRoll: null,
+  };
+  log(G, `${G.players[pid].name}: Пегас высаживает десант — штурм ${to.name} (${count} против ${to.troops}).`);
   return null;
 }
 

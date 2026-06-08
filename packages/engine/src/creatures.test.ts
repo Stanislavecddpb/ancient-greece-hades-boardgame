@@ -13,6 +13,8 @@ import {
   applySellUnits,
   applyChimeraReplay,
   endChimera,
+  applySatyrSteal,
+  applyCyclopsReplace,
 } from './creatures';
 import { applyPegasusMove } from './movement';
 import type { CycladesState, Sea } from './types';
@@ -38,10 +40,13 @@ function withMarket(market: string[], deck: string[] = ['fates', 'giant', 'dryad
 }
 
 describe('рынок существ', () => {
-  it('стартовый рынок открывает 3 существа, в колоде остальное', () => {
+  it('стартовый рынок открывает только верхнее существо (за 4), два слота — рубашкой', () => {
     const m = createCreatureMarket();
     expect(m.market).toHaveLength(3);
-    expect(m.deck.length).toBe(Object.keys(CREATURES).length - 3);
+    expect(typeof m.market[0]).toBe('string');
+    expect(m.market[1]).toBeNull();
+    expect(m.market[2]).toBeNull();
+    expect(m.deck.length).toBe(Object.keys(CREATURES).length - 1);
     expect(m.discard).toHaveLength(0);
   });
 
@@ -208,15 +213,67 @@ describe('Пегас', () => {
     expect(G.pegasusMove).toBeNull();
   });
 
-  it('нельзя перебросить на чужой остров', () => {
+  it('на вражеский остров с войсками — начинается бой', () => {
     const G = withMarket(['pegasus', 'a', 'b']);
     G.players['0'].gold = 9;
     applyBuyCreature(G, '0', 0);
     const a = G.territories['home_n'];
     const b = G.territories['home_e'];
     if (a.kind === 'island') { a.ownerId = '0'; a.troops = 3; }
-    if (b.kind === 'island') { b.ownerId = '1'; b.troops = 1; }
-    expect(applyPegasusMove(G, '0', 'home_n', 'home_e', 1)).toBe('цель — не ваш остров');
+    if (b.kind === 'island') { b.ownerId = '1'; b.troops = 2; }
+    expect(applyPegasusMove(G, '0', 'home_n', 'home_e', 2)).toBeNull();
+    expect(G.pegasusMove).toBeNull();
+    expect(G.combat).toMatchObject({ kind: 'land', location: 'home_e', attackerId: '0', defenderId: '1', attackerUnits: 2 });
+    if (a.kind === 'island') expect(a.troops).toBe(1); // 2 ушли в десант
+  });
+});
+
+describe('Сатир', () => {
+  it('крадёт философа у выбранного соперника', () => {
+    const G = withMarket(['satyr', 'a', 'b']);
+    G.players['0'].gold = 9;
+    G.players['1'].philosophers = 2;
+    expect(applyBuyCreature(G, '0', 0)).toBeNull();
+    expect(G.satyrSteal).toBe('0');
+    expect(applySatyrSteal(G, '0', '1')).toBeNull();
+    expect(G.players['1'].philosophers).toBe(1);
+    expect(G.players['0'].philosophers).toBe(1);
+    expect(G.satyrSteal).toBeNull();
+  });
+
+  it('если у выбранного нет философа — ничего не происходит', () => {
+    const G = withMarket(['satyr', 'a', 'b']);
+    G.players['0'].gold = 9;
+    G.players['1'].philosophers = 0;
+    applyBuyCreature(G, '0', 0);
+    expect(applySatyrSteal(G, '0', '1')).toBeNull();
+    expect(G.players['0'].philosophers).toBe(0);
+    expect(G.satyrSteal).toBeNull();
+  });
+});
+
+describe('Циклоп', () => {
+  it('покупка открывает выбор; заменяет выбранное здание на нужный тип', () => {
+    const G = withMarket(['cyclops', 'a', 'b']);
+    G.players['0'].gold = 9;
+    const isl = G.territories['home_n'];
+    if (isl.kind !== 'island') throw new Error('home_n');
+    isl.ownerId = '0';
+    isl.buildings = [{ type: 'port', ownerId: '0' }];
+    expect(applyBuyCreature(G, '0', 0, 'home_n')).toBeNull();
+    expect(G.cyclopsSwap).toMatchObject({ playerId: '0', islandId: 'home_n' });
+    expect(applyCyclopsReplace(G, '0', 0, 'temple')).toBeNull();
+    expect(isl.buildings[0].type).toBe('temple');
+    expect(G.cyclopsSwap).toBeNull();
+  });
+
+  it('нельзя купить Циклопа без своих зданий на острове', () => {
+    const G = withMarket(['cyclops', 'a', 'b']);
+    G.players['0'].gold = 9;
+    const isl = G.territories['home_n'];
+    if (isl.kind === 'island') { isl.ownerId = '0'; isl.buildings = []; }
+    expect(applyBuyCreature(G, '0', 0, 'home_n')).toBe('нужно своё здание');
+    expect(G.cyclopsSwap).toBeNull();
   });
 });
 

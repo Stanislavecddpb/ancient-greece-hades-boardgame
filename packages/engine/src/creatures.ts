@@ -2,6 +2,7 @@ import {
   type CycladesState,
   type PlayerID,
   type CreatureMarket,
+  type BuildingType,
   UNIT_SUPPLY,
   ALL_BUILDINGS,
 } from './types';
@@ -63,14 +64,11 @@ export const CREATURES: Record<string, CreatureDef> = {
   },
   cyclops: {
     id: 'cyclops', name: 'Циклоп', emblem: '🛠️', cost: 2, target: 'own-island',
-    desc: 'Замените здание на острове на другой тип',
+    desc: 'Выберите своё здание и замените его на здание любого типа',
     apply: (G, pid, tid) => {
       const isl = G.territories[tid!];
       if (!isIsland(isl) || isl.buildings.length === 0) return 'нужно своё здание';
-      const missing = ALL_BUILDINGS.find((t) => !isl.buildings.some((b) => b.type === t));
-      if (!missing) return 'все типы зданий уже есть';
-      isl.buildings[0] = { type: missing, ownerId: pid };
-      checkMetropolis(G, pid);
+      G.cyclopsSwap = { playerId: pid, islandId: tid! };
       return null;
     },
   },
@@ -130,15 +128,8 @@ export const CREATURES: Record<string, CreatureDef> = {
   },
   satyr: {
     id: 'satyr', name: 'Сатир', emblem: '🍇', cost: 2, target: 'none',
-    desc: 'Украдите философа у соперника',
-    apply: (G, pid) => {
-      const v = opponentWithMost(G, pid, 'philosophers');
-      if (!v) return 'не у кого красть философа';
-      G.players[v].philosophers -= 1;
-      G.players[pid].philosophers += 1;
-      checkMetropolis(G, pid);
-      return null;
-    },
+    desc: 'Выберите соперника и украдите у него философа (если он есть)',
+    apply: (G, pid) => { G.satyrSteal = pid; return null; },
   },
   siren: {
     id: 'siren', name: 'Сирена', emblem: '🎶', cost: 3, target: 'enemy-sea',
@@ -216,11 +207,14 @@ export function makeCreatureDeck(): string[] {
   return Object.keys(CREATURES);
 }
 
-/** Создаёт стартовый рынок: колода (опц. перемешана) и 3 открытых существа. */
+/**
+ * Создаёт стартовый рынок: открыто только верхнее существо (за 4), два нижних
+ * слота — рубашкой (null). Новые существа открываются сверху каждый цикл/Зевсом.
+ */
 export function createCreatureMarket(shuffle?: <T>(a: T[]) => T[]): CreatureMarket {
   const full = makeCreatureDeck();
   const deck = shuffle ? shuffle(full) : full;
-  const market = deck.splice(0, 3);
+  const market: (string | null)[] = [deck.shift() ?? null, null, null];
   return { deck, market, discard: [] };
 }
 
@@ -261,15 +255,6 @@ export function advanceCreatureMarket(c: CreatureMarket): void {
   }
   // Сверху открывается новое существо (или рубашка, если колода и сброс пусты).
   c.market.unshift(drawCard(c) ?? null);
-}
-
-/** Добирает рынок до 3 открытых существ (на старте партии). */
-function refillMarket(c: CreatureMarket): void {
-  while (c.market.length < 3) {
-    const next = drawCard(c);
-    if (!next) break;
-    c.market.push(next);
-  }
 }
 
 /** Проверяет цель существа. Возвращает текст ошибки или null. */
@@ -486,6 +471,58 @@ export function endChimera(G: CycladesState, pid: PlayerID): string | null {
   if (G.chimeraPick !== pid) return 'сейчас не ваш выбор Химеры';
   reshuffleDiscardIntoDeck(G);
   G.chimeraPick = null;
+  return null;
+}
+
+/**
+ * Сатир: украсть философа у выбранного соперника. Если у него философа нет —
+ * ничего не происходит (но режим закрывается). Возвращает ошибку или null.
+ */
+export function applySatyrSteal(G: CycladesState, pid: PlayerID, victimId: PlayerID): string | null {
+  if (G.satyrSteal !== pid) return 'сейчас не ваш Сатир';
+  const v = G.players[victimId];
+  if (!v || victimId === pid || v.isEliminated) return 'нельзя выбрать этого игрока';
+  if (v.philosophers > 0) {
+    v.philosophers -= 1;
+    G.players[pid].philosophers += 1;
+    checkMetropolis(G, pid);
+    log(G, `${G.players[pid].name}: Сатир крадёт философа у ${v.name}.`);
+  } else {
+    log(G, `${G.players[pid].name}: Сатир не нашёл философа у ${v.name}.`);
+  }
+  G.satyrSteal = null;
+  return null;
+}
+
+/** Отменить Сатира (ничего не крадём). */
+export function endSatyr(G: CycladesState, pid: PlayerID): string | null {
+  if (G.satyrSteal !== pid) return 'сейчас не ваш Сатир';
+  G.satyrSteal = null;
+  return null;
+}
+
+/** Циклоп: заменить выбранное здание острова на здание типа `type`. */
+export function applyCyclopsReplace(
+  G: CycladesState, pid: PlayerID, buildingIndex: number, type: BuildingType,
+): string | null {
+  const c = G.cyclopsSwap;
+  if (!c || c.playerId !== pid) return 'сейчас не ваш Циклоп';
+  if (!ALL_BUILDINGS.includes(type)) return 'неизвестный тип здания';
+  const isl = G.territories[c.islandId];
+  if (!isIsland(isl) || isl.ownerId !== pid) return 'нужен свой остров';
+  if (buildingIndex < 0 || buildingIndex >= isl.buildings.length) return 'нет такого здания';
+  const old = isl.buildings[buildingIndex].type;
+  isl.buildings[buildingIndex] = { type, ownerId: pid };
+  G.cyclopsSwap = null;
+  checkMetropolis(G, pid);
+  log(G, `${G.players[pid].name}: Циклоп меняет ${old} → ${type} на ${isl.name}.`);
+  return null;
+}
+
+/** Отменить Циклопа (не менять здание). */
+export function endCyclops(G: CycladesState, pid: PlayerID): string | null {
+  if (!G.cyclopsSwap || G.cyclopsSwap.playerId !== pid) return 'сейчас не ваш Циклоп';
+  G.cyclopsSwap = null;
   return null;
 }
 

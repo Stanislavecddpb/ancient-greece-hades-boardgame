@@ -165,7 +165,17 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 .action-bar.combat { border-color: #c0453a; box-shadow: 0 0 0 1px #c0453a55, 0 0 20px #c0453a44; }
 .combat-side { font-weight: 700; }
 .combat-vs { opacity: 0.6; font-size: 0.8rem; }
-.combat-roll { font-size: 0.78rem; opacity: 0.85; background: #2a1414; padding: 2px 7px; border-radius: 6px; }
+.combat-roll { font-size: 0.78rem; opacity: 0.95; background: #2a1414; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 8px; }
+.combat-die {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 8px; background: #f3ead6; color: #2a1a10;
+  border: 2px solid var(--die, #888); box-shadow: 0 2px 6px #0007, inset 0 0 6px #00000022;
+  font-weight: 800; line-height: 1;
+}
+.combat-die .die-face { font-size: 1.05rem; }
+.combat-die .die-bonus { font-size: 0.5rem; font-weight: 700; opacity: 0.8; margin-top: 1px; }
+.combat-die.die-lost { filter: grayscale(0.4) brightness(0.92); opacity: 0.85; }
+.combat-outcome { font-size: 0.78rem; opacity: 0.9; }
 .action-bar.combat button { background: #b3602f; }
 .action-bar.fleetmove { border-color: #2f7da8; box-shadow: 0 0 0 1px #2f7da855, 0 0 18px #2f7da844; }
 .action-bar.fleetmove input { border-radius: 5px; border: 1px solid #2a3f5a; background: #0f1b2a; color: #e8eef5; }

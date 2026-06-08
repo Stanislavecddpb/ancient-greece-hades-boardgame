@@ -135,7 +135,7 @@ export function applyBuild(G: CycladesState, pid: string, god: GodName, islandId
   const island = G.territories[islandId];
   if (!island || !isIsland(island) || island.ownerId !== pid) return 'нужен свой остров';
   if (freeSlots(island) <= 0) return 'нет свободных слотов';
-  if (island.buildings.some((b) => b.type === type)) return 'такое здание уже есть на острове';
+  // Здание того же типа разрешено — был бы свободный слот (важно для скидки храмов).
 
   island.buildings.push({ type, ownerId: pid });
   player.gold -= BUILDING_COST;

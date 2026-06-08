@@ -6,6 +6,7 @@ import {
   type GodName,
   type TerritoryId,
   GOD_BUILDING,
+  ALL_BUILDINGS,
   CREATURES,
   chimeraPlayable,
   creaturePriceAt,
@@ -122,10 +123,11 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
     });
     if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.sylphStep(sel.id, to); setSelected(to); } };
   } else if (canAct && me && G.pegasusMove === me && sel && isIsland(sel) && sel.ownerId === me && sel.troops > 0) {
-    // Пегас: выбран свой остров-источник — стрелки на ДРУГИЕ свои острова (без моста).
+    // Пегас: выбран свой остров-источник — стрелки на ЛЮБОЙ другой остров (без моста);
+    // если на цели войска врага — начнётся бой.
     const n = Math.min(Math.max(1, troopCount), sel.troops);
     const targets = Object.values(G.territories)
-      .filter((t): t is Territory => isIsland(t) && t.ownerId === me && t.id !== sel.id)
+      .filter((t): t is Territory => isIsland(t) && t.id !== sel.id)
       .map((t) => t.id);
     if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.pegasusMove(sel.id, to, n); setSelected(null); } };
   } else if (canAct && me && G.fleetMove && G.fleetMove.playerId === me) {
@@ -166,6 +168,10 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
             troopCount={troopCount} setTroopCount={setTroopCount} />
         ) : G.chimeraPick === me ? (
           <ChimeraPanel G={G} me={me} moves={moves} selected={selected} />
+        ) : G.satyrSteal === me ? (
+          <SatyrPanel G={G} ctx={ctx} me={me} moves={moves} nameOf={nameOf} />
+        ) : G.cyclopsSwap && G.cyclopsSwap.playerId === me ? (
+          <CyclopsPanel G={G} moves={moves} />
         ) : ctx.phase === 'actions' && G.pendingCornucopia ? (
           G.pendingCornucopia === me ? (
             <ProsperityPrompt G={G} me={me} moves={moves} selected={selected} />
@@ -232,8 +238,7 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
   const canRecruitTroop = !!sel && isIsland(sel) && sel.ownerId === pid;
   const canRecruitFleet = !!sel && isSea(sel) && canPlaceFleet(G, pid, sel.id);
   const canBuildHere =
-    !!sel && isIsland(sel) && sel.ownerId === pid && freeSlots(sel) > 0 &&
-    !!buildType && !sel.buildings.some((b) => b.type === buildType);
+    !!sel && isIsland(sel) && sel.ownerId === pid && freeSlots(sel) > 0 && !!buildType;
   // Источник перемещения войск выбран — показываем выбор количества; стрелки рисует карта.
   const troopSource = !!sel && isIsland(sel) && sel.ownerId === pid && sel.troops > 0 && god === 'ares';
   const fleetSource = !!sel && isSea(sel) && sel.ownerId === pid && sel.fleets > 0 && god === 'poseidon';
@@ -439,7 +444,11 @@ function CombatPanel({ G, me, moves }: { G: CycladesState; me: string | null; mo
         </span>
         {last && (
           <span className="combat-roll">
-            раунд: {last.aLost ? `−${unit}атак.` : ''} {last.dLost ? `−${unit}защ.` : ''}{!last.aLost && !last.dLost ? 'без потерь' : ''}
+            <CombatDie key={`a${c.round}`} value={last.aDie} color={attacker.color} lost={last.aLost} />
+            <CombatDie key={`d${c.round}`} value={last.dDie} color={defender.color} lost={last.dLost} bonus={c.defenderBonus} />
+            <span className="combat-outcome">
+              {last.aLost && last.dLost ? 'обоюдные потери' : last.dLost ? 'защитник теряет юнита' : last.aLost ? 'атакующий теряет юнита' : 'без потерь'}
+            </span>
           </span>
         )}
         {myFight ? (
@@ -452,6 +461,24 @@ function CombatPanel({ G, me, moves }: { G: CycladesState; me: string | null; mo
         )}
       </div>
     </div>
+  );
+}
+
+/** Анимированный кубик боя: «крутится» при появлении и замирает на выпавшей грани. */
+function CombatDie({ value, color, lost, bonus }: {
+  value: number; color: string; lost: boolean; bonus?: number;
+}) {
+  return (
+    <motion.span
+      className={`combat-die ${lost ? 'die-lost' : ''}`}
+      style={{ ['--die' as any]: color }}
+      initial={{ rotate: -240, scale: 0.3, opacity: 0 }}
+      animate={{ rotate: [-240, 30, 0], scale: [0.3, 1.15, 1], opacity: 1 }}
+      transition={{ duration: 0.55, ease: 'easeOut', times: [0, 0.7, 1] }}
+    >
+      <span className="die-face">{value}</span>
+      {bonus ? <span className="die-bonus">+{bonus}🛡</span> : null}
+    </motion.span>
   );
 }
 
@@ -551,13 +578,13 @@ function PegasusPanel({ G, me, moves, selected, troopCount, setTroopCount }: {
     <div className="action-bar fleetmove">
       <div className="ab-title">🐎 Пегас: перебросьте войска на другой свой остров</div>
       <div className="ab-controls">
-        <span className="sel-hint">{source ? sel!.name : 'выберите свой остров-источник'}</span>
+        <span className="sel-hint">{source ? `источник: ${sel!.name}` : 'выберите свой остров-источник'}</span>
         {source && (
           <span className="move-box">
             <span>войск:</span>
             <input type="number" min={1} max={max} value={Math.min(troopCount, max)} style={{ width: 40 }}
               onChange={(e) => setTroopCount(Math.max(1, Math.min(max, Number(e.target.value))))} />
-            <span className="sel-hint">→ кликните стрелку к своему острову</span>
+            <span className="sel-hint">→ стрелка на остров назначения (бой, если там враг)</span>
           </span>
         )}
         <button className="end-turn" onClick={() => moves.endPegasus()}>Отмена</button>
@@ -594,6 +621,69 @@ function ChimeraPanel({ G, me, moves, selected }: {
           })}
         </span>
         <button className="end-turn" onClick={() => moves.endChimera()}>Пропустить</button>
+      </div>
+    </div>
+  );
+}
+
+/** Сатир: выбрать соперника, у которого украсть философа. */
+function SatyrPanel({ G, ctx, me, moves, nameOf }: {
+  G: CycladesState; ctx: any; me: string | null; moves: any; nameOf: (pid: string) => string;
+}) {
+  const opps: string[] = ctx.playOrder.filter((pid: string) => pid !== me && !G.players[pid].isEliminated);
+  return (
+    <div className="action-bar sphinx">
+      <div className="ab-title">🍇 Сатир: у кого украсть философа?</div>
+      <div className="ab-controls">
+        <span className="creature-buy">
+          {opps.map((pid) => (
+            <button key={pid} className="cr-buy" onClick={() => moves.satyrSteal(pid)}>
+              {nameOf(pid)}
+            </button>
+          ))}
+        </span>
+        <span className="sel-hint">если философа нет — ничего не произойдёт</span>
+        <button className="end-turn" onClick={() => moves.endSatyr()}>Отмена</button>
+      </div>
+    </div>
+  );
+}
+
+const BUILD_LABEL: Record<string, string> = {
+  port: 'Порт', fortress: 'Крепость', temple: 'Храм', university: 'Университет',
+};
+
+/** Циклоп: выбрать своё здание и заменить его на здание любого типа. */
+function CyclopsPanel({ G, moves }: { G: CycladesState; moves: any }) {
+  const c = G.cyclopsSwap!;
+  const isl = G.territories[c.islandId];
+  const buildings = isIsland(isl) ? isl.buildings : [];
+  const [idx, setIdx] = useState<number | null>(buildings.length === 1 ? 0 : null);
+  return (
+    <div className="action-bar sphinx">
+      <div className="ab-title">🛠️ Циклоп: замена здания на {isIsland(isl) ? isl.name : ''}</div>
+      <div className="ab-controls">
+        <span className="sel-hint">здание:</span>
+        <span className="creature-buy">
+          {buildings.map((b, i) => (
+            <button key={i} className="cr-buy" disabled={idx === i} onClick={() => setIdx(i)}>
+              {BUILD_LABEL[b.type] ?? b.type}{idx === i ? ' ✓' : ''}
+            </button>
+          ))}
+        </span>
+        {idx !== null && (
+          <>
+            <span className="sel-hint">→ заменить на:</span>
+            <span className="creature-buy">
+              {ALL_BUILDINGS.map((t) => (
+                <button key={t} className="cr-buy" onClick={() => moves.cyclopsReplace(idx, t)}>
+                  {BUILD_LABEL[t]}
+                </button>
+              ))}
+            </span>
+          </>
+        )}
+        <button className="end-turn" onClick={() => moves.endCyclops()}>Отмена</button>
       </div>
     </div>
   );

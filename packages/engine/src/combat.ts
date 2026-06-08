@@ -3,16 +3,18 @@ import { COMBAT_DIE, type CombatState } from './types';
 /** Функция броска: возвращает значение грани боевой кости (0,0,1,1,2,3). */
 export type DieRoll = () => number;
 
-/** Результат одного раунда боя. */
-export interface RoundOutcome { attacker: number; defender: number; aLost: boolean; dLost: boolean; }
+/** Результат одного раунда боя (aDie/dDie — выпавшие грани кости). */
+export interface RoundOutcome { attacker: number; defender: number; aDie: number; dDie: number; aLost: boolean; dLost: boolean; }
 
 /**
  * Один раунд интерактивного боя: бросок + число юнитов (+ бонус защитника).
  * Мутирует attackerUnits/defenderUnits в CombatState и возвращает итог раунда.
  */
 export function oneRound(c: CombatState, roll: DieRoll): RoundOutcome {
-  const a = roll() + c.attackerUnits;
-  const d = roll() + c.defenderUnits + c.defenderBonus;
+  const aDie = roll();
+  const dDie = roll();
+  const a = aDie + c.attackerUnits;
+  const d = dDie + c.defenderUnits + c.defenderBonus;
   let aLost = false, dLost = false;
   if (a > d) dLost = true;
   else if (d > a) aLost = true;
@@ -20,7 +22,7 @@ export function oneRound(c: CombatState, roll: DieRoll): RoundOutcome {
   if (aLost && c.attackerUnits > 0) c.attackerUnits -= 1;
   if (dLost && c.defenderUnits > 0) c.defenderUnits -= 1;
   c.round += 1;
-  c.lastRoll = { attacker: c.attackerUnits, defender: c.defenderUnits, aLost, dLost };
+  c.lastRoll = { attacker: c.attackerUnits, defender: c.defenderUnits, aDie, dDie, aLost, dLost };
   return c.lastRoll;
 }
 
