@@ -117,6 +117,7 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
           <BoardMap G={G} me={me} selected={selected} onSelect={setSelected} movement={movement} />
           <PlayersCorners G={G} ctx={ctx} activeId={activeId} me={me} nameOf={nameOf} />
         </div>
+        <MarketColumn G={G} me={me} />
         <div className="phase-tag">Цикл {G.cycle} · {phaseLabel(ctx.phase)}</div>
         {intro && <GameIntro G={G} order={order} nameOf={nameOf} onDone={() => setIntro(false)} />}
         {G.combat ? (
@@ -231,6 +232,37 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
           <button className="end-turn" onClick={() => moves.endGod()}>Завершить →</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Колонка рынка существ справа от поля: открытые карты (портрет). */
+function MarketColumn({ G, me }: { G: CycladesState; me: string | null }) {
+  const market = G.creatures.market;
+  return (
+    <div className="market-column">
+      <div className="market-title">Существа</div>
+      {market.map((id, i) => {
+        const d = CREATURES[id];
+        const cost = me ? creatureCost(G, me, d) : d.cost;
+        return <CreatureCard key={i} def={d} cost={cost} />;
+      })}
+      {market.length === 0 && <div className="mk-empty">колода пуста</div>}
+    </div>
+  );
+}
+
+function CreatureCard({ def, cost }: { def: CreatureDef; cost: number }) {
+  const [imgOk, setImgOk] = useState(true);
+  return (
+    <div className="mk-card" title={def.desc}>
+      {imgOk ? (
+        <img className="mk-img" src={`/creatures/${def.id}.jpg`} alt={def.name} onError={() => setImgOk(false)} />
+      ) : (
+        <div className="mk-art"><span className="mk-emblem">{def.emblem}</span></div>
+      )}
+      <div className="mk-cost">{cost}🪙</div>
+      <div className="mk-name">{def.name}</div>
     </div>
   );
 }

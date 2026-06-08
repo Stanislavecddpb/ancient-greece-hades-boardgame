@@ -3,8 +3,6 @@ import {
   type CycladesState,
   type GodName,
   COMPETITIVE_GODS,
-  CREATURES,
-  creatureCost,
 } from '@cyclades/engine';
 
 interface GodData {
@@ -64,7 +62,7 @@ export function GodBoard({ G, ctx, me, moves, nameOf }: Props) {
     <div className="godboard">
       <div className="gb-top">
         <TurnOrder G={G} ctx={ctx} name={name} />
-        <Creatures G={G} me={me} />
+        <Creatures G={G} />
       </div>
 
       <div className="gb-gods">
@@ -98,30 +96,26 @@ function TurnOrder({ G, ctx, name }: { G: CycladesState; ctx: Props['ctx']; name
   );
 }
 
-function Creatures({ G, me }: { G: CycladesState; me: string | null }) {
-  const market = G.creatures.market;
+/** Рубашка колоды и сброс (горизонтальные карты) со счётчиками. */
+function Creatures({ G }: { G: CycladesState }) {
   return (
     <div className="creatures">
-      <div className="cr-head">
-        <span className="cr-deck" title="в колоде">🂠 {G.creatures.deck.length}</span>
-        <span className="cr-title">Существа</span>
-        <span className="cr-grave" title="в сбросе">⚰️ {G.creatures.discard.length}</span>
-      </div>
-      <div className="cr-row">
-        {market.map((id, i) => {
-          const d = CREATURES[id];
-          const cost = me ? creatureCost(G, me, d) : d.cost;
-          return (
-            <div key={i} className="cr-card" title={d.desc}>
-              <div className="cr-emblem">{d.emblem}</div>
-              <div className="cr-name">{d.name}</div>
-              <div className="cr-cost">{cost}🪙</div>
-            </div>
-          );
-        })}
-        {market.length === 0 && <div className="cr-empty">колода пуста</div>}
-      </div>
-      <div className="cr-note">🏛️ храм: −1 к цене · покупка в фазе действий</div>
+      <DeckPile kind="cardback" label="колода" count={G.creatures.deck.length} />
+      <DeckPile kind="discard" label="сброс" count={G.creatures.discard.length} />
+    </div>
+  );
+}
+
+function DeckPile({ kind, label, count }: { kind: 'cardback' | 'discard'; label: string; count: number }) {
+  const [imgOk, setImgOk] = useState(true);
+  return (
+    <div className={`deck-pile ${kind}`} title={`${label}: ${count}`}>
+      {imgOk ? (
+        <img className="deck-pile-img" src={`/creatures/${kind}.jpg`} alt={label} onError={() => setImgOk(false)} />
+      ) : (
+        <div className="deck-pile-fallback">{label}</div>
+      )}
+      <span className="deck-pile-count">{count}</span>
     </div>
   );
 }

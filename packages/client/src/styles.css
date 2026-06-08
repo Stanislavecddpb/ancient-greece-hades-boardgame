@@ -48,11 +48,35 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 .game { display: flex; width: 100vw; height: 100vh; overflow: hidden; }
 .map-area {
   position: relative; flex: 1; min-width: 0; height: 100vh;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; flex-direction: row; align-items: center;
 }
-/* Квадратная «сцена» доски: вписана по меньшей стороне, без пустых полей. */
-.board-stage { position: relative; width: min(100%, 100vh); aspect-ratio: 1 / 1; }
+/* Доска прижата влево; справа от неё — колонка рынка существ. */
+.board-stage { position: relative; height: 100%; aspect-ratio: 1 / 1; flex-shrink: 0; max-width: 100%; }
 .map { width: 100%; height: 100%; display: block; }
+
+/* Колонка рынка существ (между доской и полем богов) */
+.market-column {
+  flex: 1; min-width: 0; height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1.6vh; padding: 1vh 8px;
+}
+.market-title { font-size: 0.85rem; font-weight: 700; color: #cdbf9d; letter-spacing: 0.5px; }
+.mk-card {
+  width: min(100%, 22vh); aspect-ratio: 0.66 / 1; position: relative; border-radius: 10px;
+  border: 2px solid #6a5424; overflow: hidden; background: linear-gradient(160deg, #2a2412, #14100a);
+  box-shadow: 0 3px 10px #0007;
+}
+.mk-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mk-art { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.mk-emblem { font-size: 3rem; }
+.mk-cost {
+  position: absolute; top: 5px; right: 5px; background: #1a120acc; color: #f0c542; font-weight: 800;
+  font-size: 0.82rem; padding: 1px 7px; border-radius: 10px; border: 1px solid #6a5424;
+}
+.mk-name {
+  position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 0.78rem; font-weight: 700;
+  color: #f3ecd6; background: linear-gradient(0deg, #000c, #0000); padding: 10px 4px 4px;
+}
+.mk-empty { opacity: 0.6; font-size: 0.8rem; }
 
 /* ===== Лобби (ожидание старта) ===== */
 .lobby { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center;
@@ -167,22 +191,19 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 .to-tok { width: 10px; height: 10px; border-radius: 50%; }
 .to-name { font-size: 0.72rem; opacity: 0.85; }
 
-.creatures { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.cr-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.7rem; }
-.cr-title { font-weight: 700; color: #cdbf9d; }
-.cr-deck { color: #8aa0c0; }
-.cr-grave { color: #a08a7a; }
-.cr-row { display: flex; gap: 4px; }
-.cr-card {
-  flex: 1; min-width: 0; border: 1px solid #6a5424; border-radius: 6px;
-  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px;
-  background: linear-gradient(160deg, #2a2412, #181208);
+/* Рубашка колоды и сброс — горизонтальные карты со счётчиком */
+.creatures { flex: 1; display: flex; gap: 6px; align-items: stretch; }
+.deck-pile {
+  flex: 1; min-width: 0; position: relative; aspect-ratio: 1.55 / 1; border-radius: 7px;
+  overflow: hidden; border: 1px solid #5a4a2a; background: #14100a;
 }
-.cr-emblem { font-size: 1.1rem; line-height: 1; }
-.cr-name { font-size: 0.6rem; color: #e8dcb8; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.cr-cost { font-size: 0.66rem; font-weight: 800; color: #f0c542; }
-.cr-empty { flex: 1; text-align: center; font-size: 0.66rem; opacity: 0.6; padding: 8px; }
-.cr-note { font-size: 0.62rem; opacity: 0.7; }
+.deck-pile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.deck-pile-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; color: #9bb07a; }
+.deck-pile-count {
+  position: absolute; right: 4px; bottom: 3px; background: #000a; color: #f0c542; font-weight: 800;
+  font-size: 0.74rem; padding: 0 6px; border-radius: 8px;
+}
 
 /* кнопки покупки существ в нижней панели */
 .creature-buy { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; background: #221d12; border-radius: 8px; padding: 3px 6px; }
