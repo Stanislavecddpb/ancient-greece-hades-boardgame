@@ -173,10 +173,10 @@ function metropolisFallback(): ReactElement {
   );
 }
 
-/** Рог изобилия: иконка из /icons/cournocopia.png с откатом к стопке монет. */
+/** Рог изобилия: иконка из /icons/cornucopia.png с откатом к стопке монет. */
 export function CoinStack({ count = 1 }: { count?: number }) {
   const size = count >= 2 ? 24 : 19;
-  return <SvgIcon href="/icons/cournocopia.png" size={size} fallback={coinStackFallback(count)} />;
+  return <SvgIcon href="/icons/cornucopia.png" size={size} fallback={coinStackFallback(count)} />;
 }
 
 function coinStackFallback(count: number): ReactElement {
