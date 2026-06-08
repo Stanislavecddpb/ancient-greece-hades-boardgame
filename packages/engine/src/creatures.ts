@@ -8,7 +8,6 @@ import {
 import { isIsland, isSea } from './board';
 import { islandsOf, log } from './helpers';
 import { incomeFor } from './income';
-import { canPlaceFleet } from './actions';
 import { checkMetropolis } from './metropolis';
 
 /** Куда нужно нацелить существо при покупке (или none — без цели). */
@@ -281,6 +280,9 @@ export function createCreatureMarket(shuffle?: <T>(a: T[]) => T[]): CreatureMark
   return { deck, market, discard: [] };
 }
 
+/** Цена зависит от позиции в рынке: верхнее — 4, среднее — 3, нижнее — 2. */
+export const CREATURE_SLOT_PRICES = [4, 3, 2];
+
 /** Сколько храмов у игрока (каждый снижает цену существа на 1). */
 export function templeCount(G: CycladesState, pid: PlayerID): number {
   let n = 0;
@@ -288,20 +290,41 @@ export function templeCount(G: CycladesState, pid: PlayerID): number {
   return n;
 }
 
-/** Итоговая цена существа с учётом храмов (минимум 1). */
-export function creatureCost(G: CycladesState, pid: PlayerID, def: CreatureDef): number {
-  return Math.max(1, def.cost - templeCount(G, pid));
+/** Цена существа в слоте index (по позиции) с учётом храмов (минимум 1). */
+export function creaturePriceAt(G: CycladesState, pid: PlayerID, index: number): number {
+  const base = CREATURE_SLOT_PRICES[index] ?? CREATURE_SLOT_PRICES[CREATURE_SLOT_PRICES.length - 1];
+  return Math.max(1, base - templeCount(G, pid));
 }
 
-/** Добирает рынок до 3 открытых существ (перекидывая сброс в колоду при нужде). */
+/** Берёт верхнюю карту колоды (перекидывая сброс в колоду при пустой). */
+function drawCard(c: CreatureMarket): string | undefined {
+  if (c.deck.length === 0) {
+    if (c.discard.length === 0) return undefined;
+    c.deck = c.discard;
+    c.discard = [];
+  }
+  return c.deck.shift();
+}
+
+/**
+ * Сдвиг рынка на одну позицию: нижнее (за 2) уходит в сброс, остальные
+ * «дешевеют» на шаг, сверху (за 4) открывается новое. Конец раунда и Зевс.
+ */
+export function advanceCreatureMarket(c: CreatureMarket): void {
+  if (c.market.length >= 3) {
+    const bottom = c.market.pop();
+    if (bottom) c.discard.push(bottom);
+  }
+  const next = drawCard(c);
+  if (next) c.market.unshift(next);
+}
+
+/** Добирает рынок до 3 открытых существ (на старте партии). */
 function refillMarket(c: CreatureMarket): void {
   while (c.market.length < 3) {
-    if (c.deck.length === 0) {
-      if (c.discard.length === 0) break;
-      c.deck = c.discard;
-      c.discard = [];
-    }
-    c.market.push(c.deck.shift()!);
+    const next = drawCard(c);
+    if (!next) break;
+    c.market.push(next);
   }
 }
 
@@ -313,8 +336,15 @@ function validateTarget(G: CycladesState, pid: PlayerID, def: CreatureDef, tid?:
       return null;
     case 'own-island':
       return t && isIsland(t) && t.ownerId === pid ? null : 'нужен свой остров';
-    case 'own-sea':
-      return t && isSea(t) && canPlaceFleet(G, pid, t.id) ? null : 'нужна своя морская зона';
+    case 'own-sea': {
+      if (!t || !isSea(t)) return 'нужна своя морская зона';
+      if (t.fleets > 0 && t.ownerId !== pid) return 'нужна своя морская зона';
+      const own = t.ownerId === pid || t.adjacentIslands.some((iid) => {
+        const isl = G.territories[iid];
+        return isl && isIsland(isl) && isl.ownerId === pid;
+      });
+      return own ? null : 'нужна своя морская зона';
+    }
     case 'enemy-island':
       return t && isIsland(t) && t.ownerId && t.ownerId !== pid && t.troops > 0 ? null : 'нужен вражеский остров с войсками';
     case 'enemy-sea':
@@ -337,7 +367,7 @@ export function applyBuyCreature(
   const def = CREATURES[id];
   if (!def) return 'неизвестное существо';
 
-  const cost = creatureCost(G, pid, def);
+  const cost = creaturePriceAt(G, pid, slotIndex); // цена по позиции слота
   if (G.players[pid].gold < cost) return 'не хватает золота';
   const targetErr = validateTarget(G, pid, def, targetId);
   if (targetErr) return targetErr;
@@ -347,22 +377,24 @@ export function applyBuyCreature(
 
   G.players[pid].gold -= cost;
   s.creatureBought = true;
+  // Купленное уходит в сброс, дороже него сдвигаются к дешёвой стороне,
+  // сверху (за 4) открывается новое существо.
   G.creatures.market.splice(slotIndex, 1);
   G.creatures.discard.push(id);
-  refillMarket(G.creatures);
+  const next = drawCard(G.creatures);
+  if (next) G.creatures.market.unshift(next);
   log(G, `${G.players[pid].name} призывает: ${def.name} (−${cost}🪙). ${def.desc}.`);
   return null;
 }
 
-/** Зевс: бесплатно сбросить весь открытый рынок и открыть новый (один раз за ход). */
+/** Зевс: бесплатно сдвинуть рынок на одну позицию (один раз за ход). */
 export function applyCycleCreatures(G: CycladesState, pid: PlayerID): string | null {
   const s = G.actions;
   if (!s) return 'нет фазы действий';
   if (s.creatureCycled) return 'колода уже прокручена в этот ход';
 
   s.creatureCycled = true;
-  while (G.creatures.market.length) G.creatures.discard.push(G.creatures.market.pop()!);
-  refillMarket(G.creatures);
+  advanceCreatureMarket(G.creatures);
   log(G, `${G.players[pid].name} прокручивает колоду существ.`);
   return null;
 }

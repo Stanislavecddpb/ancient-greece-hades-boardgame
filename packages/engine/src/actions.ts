@@ -12,6 +12,7 @@ import {
 import { isIsland, isSea } from './board';
 import { islandsOf, freeSlots, log } from './helpers';
 import { checkMetropolis } from './metropolis';
+import { advanceCreatureMarket } from './creatures';
 
 /** Что и почём нанимает каждый бог за одну активацию. */
 type RecruitKind = 'troop' | 'fleet' | 'priest' | 'philosopher';
@@ -195,6 +196,9 @@ export function endCycle(G: CycladesState, ctx: Ctx): void {
       log(G, `${p.name} выбывает из игры.`);
     }
   }
+  // Рынок существ сдвигается на одну позицию в конце раунда.
+  advanceCreatureMarket(G.creatures);
+
   G.startIndex = (G.startIndex + 1) % ctx.playOrder.length;
   G.cycle += 1;
 }

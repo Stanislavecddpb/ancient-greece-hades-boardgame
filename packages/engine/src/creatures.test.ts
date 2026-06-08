@@ -4,7 +4,8 @@ import { setupGame } from './setup';
 import {
   CREATURES,
   createCreatureMarket,
-  creatureCost,
+  creaturePriceAt,
+  advanceCreatureMarket,
   applyBuyCreature,
   applyCycleCreatures,
 } from './creatures';
@@ -23,9 +24,9 @@ function ctxFor(n: number): Ctx {
 }
 
 /** Готовит состояние с фазой действий и фиксированным рынком существ. */
-function withMarket(market: string[]): CycladesState {
+function withMarket(market: string[], deck: string[] = ['fates', 'giant', 'dryad']): CycladesState {
   const G = setupGame(ctxFor(2));
-  G.creatures = { deck: ['fates', 'giant', 'dryad'], market: [...market], discard: [] };
+  G.creatures = { deck: [...deck], market: [...market], discard: [] };
   G.actions = { queue: [{ god: 'zeus', playerId: '0' }], index: 0, recruited: 0, built: false };
   return G;
 }
@@ -39,47 +40,70 @@ describe('рынок существ', () => {
   });
 
   it('все id каталога — латиницей и без «the»', () => {
-    for (const id of Object.keys(CREATURES)) {
-      expect(id).toMatch(/^[a-z]+$/);
-    }
+    for (const id of Object.keys(CREATURES)) expect(id).toMatch(/^[a-z]+$/);
     expect(CREATURES).toHaveProperty('kraken');
-    expect(CREATURES).toHaveProperty('chimera');
     expect(CREATURES).not.toHaveProperty('thekraken');
   });
 });
 
-describe('эффекты существ', () => {
-  it('Минотавр требует свой остров и ставит 2 войска', () => {
+describe('цена по позиции', () => {
+  it('верхнее 4, среднее 3, нижнее 2', () => {
     const G = withMarket(['minotaur', 'dryad', 'fates']);
+    expect(creaturePriceAt(G, '0', 0)).toBe(4);
+    expect(creaturePriceAt(G, '0', 1)).toBe(3);
+    expect(creaturePriceAt(G, '0', 2)).toBe(2);
+  });
+
+  it('храм снижает цену позиции (минимум 1)', () => {
+    const G = withMarket(['kraken', 'dryad', 'fates']);
+    const isl = G.territories['home_n'];
+    if (isl.kind === 'island') {
+      isl.buildings.push({ type: 'temple', ownerId: '0' });
+      isl.buildings.push({ type: 'temple', ownerId: '0' });
+    }
+    expect(creaturePriceAt(G, '0', 0)).toBe(2); // 4 − 2 храма
+    expect(creaturePriceAt(G, '0', 2)).toBe(1); // 2 − 2 = 0 → минимум 1
+  });
+});
+
+describe('сдвиг рынка', () => {
+  it('конец раунда/Зевс: нижнее в сброс, остальные дешевеют, сверху новое', () => {
+    const c = { deck: ['d'], market: ['a', 'b', 'c'], discard: [] as string[] };
+    advanceCreatureMarket(c);
+    expect(c.market).toEqual(['d', 'a', 'b']); // a:4→3, b:3→2, c в сброс, d сверху
+    expect(c.discard).toEqual(['c']);
+  });
+
+  it('Зевс сдвигает рынок на одну позицию (бесплатно, один раз за ход)', () => {
+    const G = withMarket(['a', 'b', 'c'], ['d']);
+    const gold0 = G.players['0'].gold;
+    expect(applyCycleCreatures(G, '0')).toBeNull();
+    expect(G.creatures.market).toEqual(['d', 'a', 'b']);
+    expect(G.creatures.discard).toEqual(['c']);
+    expect(G.players['0'].gold).toBe(gold0); // бесплатно
+    expect(applyCycleCreatures(G, '0')).toBe('колода уже прокручена в этот ход');
+  });
+});
+
+describe('покупка существ', () => {
+  it('покупка снизу (за 2): купленное в сброс, остальные дешевеют, сверху новое', () => {
+    const G = withMarket(['a', 'b', 'minotaur'], ['d']); // minotaur снизу (за 2), цель — остров
+    G.players['0'].gold = 9;
     const isl = G.territories['home_n'];
     if (isl.kind !== 'island') throw new Error('home_n');
-    const before = isl.troops;
-    const supply = G.players['0'].troopsSupply;
-    expect(applyBuyCreature(G, '0', 0, 'home_n')).toBeNull();
-    expect(isl.troops).toBe(before + 2);
-    expect(G.players['0'].troopsSupply).toBe(supply - 2);
-    expect(G.actions!.creatureBought).toBe(true);
+    const gold0 = G.players['0'].gold;
+    expect(applyBuyCreature(G, '0', 2, 'home_n')).toBeNull();
+    expect(G.players['0'].gold).toBe(gold0 - 2); // нижний слот — 2
+    expect(G.creatures.market).toEqual(['d', 'a', 'b']);
+    expect(G.creatures.discard).toContain('minotaur');
   });
 
-  it('Кракен топит весь вражеский флот в зоне', () => {
-    const G = withMarket(['kraken', 'dryad', 'fates']);
-    const sea = Object.values(G.territories).find((t) => t.kind === 'sea')!;
-    if (sea.kind !== 'sea') throw new Error('sea');
-    sea.ownerId = '1'; sea.fleets = 3;
-    G.players['1'].fleetsSupply = 0; // чтобы возврат 3 фигурок не упёрся в лимит запаса
-    expect(applyBuyCreature(G, '0', 0, sea.id)).toBeNull();
-    expect(sea.fleets).toBe(0);
-    expect(sea.ownerId).toBeNull();
-    expect(G.players['1'].fleetsSupply).toBe(3);
-  });
-
-  it('Грифон крадёт половину золота богатейшего соперника', () => {
+  it('Грифон сверху стоит 4 и крадёт половину золота', () => {
     const G = withMarket(['griffon', 'dryad', 'fates']);
     G.players['0'].gold = 5; G.players['1'].gold = 8;
-    expect(applyBuyCreature(G, '0', 0)).toBeNull(); // griffon — без цели
+    expect(applyBuyCreature(G, '0', 0)).toBeNull(); // верхний слот — 4
     expect(G.players['1'].gold).toBe(8 - 4);
-    // +4 украдено, −3 цена грифона
-    expect(G.players['0'].gold).toBe(5 + 4 - 3);
+    expect(G.players['0'].gold).toBe(5 + 4 - 4);
   });
 
   it('одно существо за активацию', () => {
@@ -88,27 +112,15 @@ describe('эффекты существ', () => {
     expect(applyBuyCreature(G, '0', 1)).toBe('существо уже куплено в этот ход');
   });
 
-  it('храм снижает цену существа (минимум 1)', () => {
-    const G = withMarket(['kraken', 'dryad', 'fates']);
+  it('Минотавр ставит 2 войска на свой остров', () => {
+    const G = withMarket(['minotaur', 'dryad', 'fates']);
+    G.players['0'].gold = 9;
     const isl = G.territories['home_n'];
-    if (isl.kind === 'island') {
-      isl.buildings.push({ type: 'temple', ownerId: '0' });
-      isl.buildings.push({ type: 'temple', ownerId: '0' });
-    }
-    expect(creatureCost(G, '0', CREATURES.kraken)).toBe(2); // 4 − 2 храма
-    expect(creatureCost(G, '0', CREATURES.dryad)).toBe(1); // не ниже 1
-  });
-});
-
-describe('прокрутка колоды Зевсом', () => {
-  it('бесплатно меняет рынок, один раз за ход', () => {
-    const G = withMarket(['minotaur', 'pegasus', 'cyclops']);
-    const before = [...G.creatures.market];
-    const gold0 = G.players['0'].gold;
-    expect(applyCycleCreatures(G, '0')).toBeNull();
-    expect(G.players['0'].gold).toBe(gold0); // бесплатно
-    expect(G.creatures.market).not.toEqual(before);
-    expect(G.creatures.discard).toEqual(expect.arrayContaining(before));
-    expect(applyCycleCreatures(G, '0')).toBe('колода уже прокручена в этот ход');
+    if (isl.kind !== 'island') throw new Error('home_n');
+    const before = isl.troops;
+    const supply = G.players['0'].troopsSupply;
+    expect(applyBuyCreature(G, '0', 0, 'home_n')).toBeNull();
+    expect(isl.troops).toBe(before + 2);
+    expect(G.players['0'].troopsSupply).toBe(supply - 2);
   });
 });

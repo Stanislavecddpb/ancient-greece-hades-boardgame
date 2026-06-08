@@ -60,21 +60,25 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
   align-items: center; justify-content: center; gap: 1.6vh; padding: 1vh 8px;
 }
 .market-title { font-size: 0.85rem; font-weight: 700; color: #cdbf9d; letter-spacing: 0.5px; }
+.mk-row { display: flex; align-items: center; gap: 8px; }
 .mk-card {
-  width: min(100%, 22vh); aspect-ratio: 0.66 / 1; position: relative; border-radius: 10px;
+  width: min(100%, 20vh); aspect-ratio: 0.66 / 1; position: relative; border-radius: 10px;
   border: 2px solid #6a5424; overflow: hidden; background: linear-gradient(160deg, #2a2412, #14100a);
-  box-shadow: 0 3px 10px #0007;
+  box-shadow: 0 3px 10px #0007; flex-shrink: 0;
 }
 .mk-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mk-art { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
 .mk-emblem { font-size: 3rem; }
-.mk-cost {
-  position: absolute; top: 5px; right: 5px; background: #1a120acc; color: #f0c542; font-weight: 800;
-  font-size: 0.82rem; padding: 1px 7px; border-radius: 10px; border: 1px solid #6a5424;
-}
 .mk-name {
   position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 0.78rem; font-weight: 700;
   color: #f3ecd6; background: linear-gradient(0deg, #000c, #0000); padding: 10px 4px 4px;
+}
+/* цена существа — столбик монет по числу позиции (4/3/2) */
+.mk-coins { display: flex; flex-direction: column; gap: 3px; }
+.mk-coin {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe07a, #f0c542 55%, #9c7416);
+  border: 1px solid #7a5a16; box-shadow: 0 1px 2px #0008;
 }
 .mk-empty { opacity: 0.6; font-size: 0.8rem; }
 

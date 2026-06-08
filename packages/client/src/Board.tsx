@@ -7,7 +7,8 @@ import {
   type TerritoryId,
   GOD_BUILDING,
   CREATURES,
-  creatureCost,
+  creaturePriceAt,
+  CREATURE_SLOT_PRICES,
   metropolisCount,
   currentTurn,
   activePlayerId,
@@ -236,23 +237,28 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
   );
 }
 
-/** Колонка рынка существ справа от поля: открытые карты (портрет). */
-function MarketColumn({ G, me }: { G: CycladesState; me: string | null }) {
+/** Колонка рынка существ справа от поля: открытые карты (портрет) с ценой-монетами. */
+function MarketColumn({ G }: { G: CycladesState; me: string | null }) {
   const market = G.creatures.market;
   return (
     <div className="market-column">
       <div className="market-title">Существа</div>
-      {market.map((id, i) => {
-        const d = CREATURES[id];
-        const cost = me ? creatureCost(G, me, d) : d.cost;
-        return <CreatureCard key={i} def={d} cost={cost} />;
-      })}
+      {market.map((id, i) => (
+        <div className="mk-row" key={i}>
+          <CreatureCard def={CREATURES[id]} />
+          <div className="mk-coins" title={`${CREATURE_SLOT_PRICES[i]} золота`}>
+            {Array.from({ length: CREATURE_SLOT_PRICES[i] ?? 2 }, (_, k) => (
+              <span key={k} className="mk-coin" />
+            ))}
+          </div>
+        </div>
+      ))}
       {market.length === 0 && <div className="mk-empty">колода пуста</div>}
     </div>
   );
 }
 
-function CreatureCard({ def, cost }: { def: CreatureDef; cost: number }) {
+function CreatureCard({ def }: { def: CreatureDef }) {
   const [imgOk, setImgOk] = useState(true);
   return (
     <div className="mk-card" title={def.desc}>
@@ -261,7 +267,6 @@ function CreatureCard({ def, cost }: { def: CreatureDef; cost: number }) {
       ) : (
         <div className="mk-art"><span className="mk-emblem">{def.emblem}</span></div>
       )}
-      <div className="mk-cost">{cost}🪙</div>
       <div className="mk-name">{def.name}</div>
     </div>
   );
@@ -432,7 +437,7 @@ function CreatureButtons({ G, pid, moves, sel, selected, god, s }: {
     <span className="creature-buy">
       {market.map((id, i) => {
         const d = CREATURES[id];
-        const cost = creatureCost(G, pid, d);
+        const cost = creaturePriceAt(G, pid, i); // цена по позиции слота
         const needsTarget = d.target !== 'none';
         const targetOk = creatureTargetOk(d, sel, pid);
         const disabled = !!s.creatureBought || gold < cost || (needsTarget && !targetOk);
