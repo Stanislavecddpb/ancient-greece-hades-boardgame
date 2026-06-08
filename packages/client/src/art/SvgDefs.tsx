@@ -24,7 +24,7 @@ export function SvgDefs() {
       <filter id="waterTex" x="-20%" y="-20%" width="140%" height="140%">
         <feTurbulence type="fractalNoise" baseFrequency="0.012 0.03" numOctaves="2" seed="7" result="noise" />
         <feColorMatrix in="noise" type="matrix"
-          values="0 0 0 0 0.06  0 0 0 0 0.28  0 0 0 0 0.42  0 0 0 0.5 0" result="tint" />
+          values="0 0 0 0 0.22  0 0 0 0 0.52  0 0 0 0 0.7  0 0 0 0.42 0" result="tint" />
         <feComposite in="tint" in2="SourceGraphic" operator="over" />
       </filter>
 
@@ -53,9 +53,9 @@ export function SvgDefs() {
       </filter>
 
       <radialGradient id="boardGlow" cx="50%" cy="46%" r="60%">
-        <stop offset="0%" stopColor="#1d6a98" />
-        <stop offset="70%" stopColor="#0f3f63" />
-        <stop offset="100%" stopColor="#08263d" />
+        <stop offset="0%" stopColor="#3f9fd4" />
+        <stop offset="70%" stopColor="#2a78ad" />
+        <stop offset="100%" stopColor="#1d5582" />
       </radialGradient>
 
       {/* Неровная береговая линия: шум + смещение краёв острова. */}

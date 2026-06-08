@@ -1,6 +1,6 @@
 :root {
   font-family: system-ui, sans-serif;
-  background: #0f1b2a;
+  background: #21456a;
   color: #e8eef5;
 }
 * { box-sizing: border-box; }
@@ -76,9 +76,9 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 /* цена существа — столбик монет по числу позиции (4/3/2) */
 .mk-coins { display: flex; flex-direction: column; gap: 3px; }
 .mk-coin {
-  width: 16px; height: 16px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #ffe07a, #f0c542 55%, #9c7416);
-  border: 1px solid #7a5a16; box-shadow: 0 1px 2px #0008;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: url('/icons/coin.png') center/contain no-repeat,
+    radial-gradient(circle at 35% 30%, #ffe07a, #f0c542 55%, #9c7416);
 }
 .mk-empty { opacity: 0.6; font-size: 0.8rem; }
 

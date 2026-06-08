@@ -1,8 +1,20 @@
+import { useState, type ReactElement } from 'react';
 import type { BuildingType } from '@cyclades/engine';
 
 // Иллюстрированные фишки. Каждая нарисована вокруг центра (0,0) и ставится
 // через transform на карте. Внутренность при желании можно заменить на
 // <image href> — внешний контракт (props color/size) останется тем же.
+
+/** Иконка-картинка из /icons (центр 0,0) с откатом к рисованному значку. */
+function SvgIcon({ href, size, fallback }: { href: string; size: number; fallback: ReactElement }) {
+  const [err, setErr] = useState(false);
+  if (err) return fallback;
+  const h = size / 2;
+  return (
+    <image href={href} x={-h} y={-h} width={size} height={size}
+      preserveAspectRatio="xMidYMid meet" onError={() => setErr(true)} style={{ filter: 'url(#pieceShadow)' }} />
+  );
+}
 
 function darken(hex: string, amount = 0.7): string {
   const m = hex.replace('#', '');
@@ -96,8 +108,12 @@ export function ControlToken({ color }: { color: string }) {
   );
 }
 
-/** Здание заданного типа (мрамор с цветовым акцентом). */
+/** Здание заданного типа: иконка из /icons/<type>.png с откатом к рисованному. */
 export function BuildingGlyph({ type }: { type: BuildingType }) {
+  return <SvgIcon href={`/icons/${type}.png`} size={22} fallback={buildingFallback(type)} />;
+}
+
+function buildingFallback(type: BuildingType): ReactElement {
   switch (type) {
     case 'temple':
       return (
@@ -138,8 +154,12 @@ export function BuildingGlyph({ type }: { type: BuildingType }) {
   }
 }
 
-/** Метрополия: широкий мраморный храм с золотым фронтоном. */
+/** Метрополия: иконка из /icons/metropolis.png с откатом к рисованному храму. */
 export function Metropolis() {
+  return <SvgIcon href="/icons/metropolis.png" size={34} fallback={metropolisFallback()} />;
+}
+
+function metropolisFallback(): ReactElement {
   return (
     <g filter="url(#softShadow)">
       <path d="M-15 -7 L0 -16 L15 -7 Z" fill="#d9b24a" stroke="#a8842c" strokeWidth="1" />
@@ -153,8 +173,13 @@ export function Metropolis() {
   );
 }
 
-/** Рог изобилия — стопка золотых монет (выше при 2 рогах, монеты друг на друге). */
+/** Рог изобилия: иконка из /icons/cournocopia.png с откатом к стопке монет. */
 export function CoinStack({ count = 1 }: { count?: number }) {
+  const size = count >= 2 ? 24 : 19;
+  return <SvgIcon href="/icons/cournocopia.png" size={size} fallback={coinStackFallback(count)} />;
+}
+
+function coinStackFallback(count: number): ReactElement {
   const coins = count >= 2 ? 5 : 3;
   return (
     <g filter="url(#pieceShadow)">

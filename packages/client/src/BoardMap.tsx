@@ -138,9 +138,9 @@ function SeaCell({ sea, G, selected, color, onSelect }: {
   const { x, y } = sea.pos;
   return (
     <g style={{ cursor: 'pointer' }} onClick={() => onSelect(sea.id)}>
-      <circle cx={x} cy={y} r={SEA_R} fill="#13507a" fillOpacity="0.45"
-        stroke={selected ? '#ffd76a' : '#2f6f9e'}
-        strokeWidth={selected ? 4 : 1.4} strokeOpacity={selected ? 1 : 0.5} />
+      <circle cx={x} cy={y} r={SEA_R} fill="#3f93c8" fillOpacity="0.4"
+        stroke={selected ? '#ffd76a' : '#bfe0f2'}
+        strokeWidth={selected ? 4 : 1.4} strokeOpacity={selected ? 1 : 0.45} />
       {/* флот: при наличии рога сдвигаем чуть вниз, чтобы монеты были видны сверху */}
       {SHOW_PIECES && sea.fleets > 0 && sea.ownerId && (
         <g>
