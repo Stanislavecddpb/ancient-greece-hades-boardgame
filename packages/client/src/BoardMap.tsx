@@ -38,8 +38,8 @@ const seatOf = (pid: string) => Number(pid);
 
 // ===== Размеры и расположение фишек на клетке — МЕНЯТЬ ЗДЕСЬ =====
 // Размер здания (≈ четверть–половина клетки). CELL_D — размер клетки.
-const BUILD_SIZE = CELL_D * 0.5;     // картинка здания, px
-const METRO_SIZE = CELL_D * 0.66;    // картинка Метрополии, px
+const BUILD_SIZE = CELL_D * 1.0;     // картинка здания, px
+const METRO_SIZE = CELL_D * 1.3;     // картинка Метрополии, px
 const TROOP_SCALE = 1.5;             // масштаб солдата (войска — снизу справа)
 const TROOP_OVERLAP = 12;            // насколько солдаты «заезжают» друг на друга, px
 const TROOP_MAX_SHOWN = 5;           // сколько фигур солдат показывать, дальше — счётчик
@@ -240,7 +240,7 @@ function IslandNode({ isl, G, me, selected, color, onSelect }: {
 
       {/* рога изобилия на суше — по одной иконке на рог, в столбик при count>1 */}
       {isl.cornucopiaSpots.map((s, i) => (
-        <g key={i} transform={`translate(${s.pos.x - LAND_R * 0.5} ${s.pos.y - LAND_R * 0.5})`}>
+        <g key={i} transform={`translate(${s.pos.x - LAND_R * 0.85} ${s.pos.y - LAND_R * 0.5})`}>
           {Array.from({ length: s.count }, (_, k) => (
             <g key={k} transform={`translate(0 ${k * 18})`}><CoinStack /></g>
           ))}
