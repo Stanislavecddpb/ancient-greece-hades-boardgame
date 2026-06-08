@@ -150,6 +150,20 @@ describe('фигуры существ на доске', () => {
     expect(G.boardCreatures).toHaveLength(0);
   });
 
+  it('Кракен при покупке топит флот в выбранной зоне и встаёт фигурой', () => {
+    const G = withMarket(['kraken', 'a', 'b']);
+    G.players['0'].gold = 9;
+    const sea = Object.values(G.territories).find((t) => t.kind === 'sea')!;
+    if (sea.kind !== 'sea') throw new Error('sea');
+    sea.ownerId = '1'; sea.fleets = 2;
+    G.players['1'].fleetsSupply = 0;
+    expect(applyBuyCreature(G, '0', 0, sea.id)).toBeNull();
+    expect(sea.fleets).toBe(0);
+    expect(sea.ownerId).toBeNull();
+    expect(G.players['1'].fleetsSupply).toBe(2);
+    expect(G.boardCreatures.some((c) => c.kind === 'kraken' && c.location === sea.id)).toBe(true);
+  });
+
   it('Хирон защищает остров от Гиганта/Гарпии', () => {
     const G = withMarket(['giant', 'a', 'b']);
     G.players['0'].gold = 9;

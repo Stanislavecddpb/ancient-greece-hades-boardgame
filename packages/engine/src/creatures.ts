@@ -390,7 +390,19 @@ export function applyBuyCreature(
 
   G.players[pid].gold -= cost;
   s.creatureBought = true;
-  if (def.placed) placeBoardCreature(G, def.id, pid, targetId!);
+  if (def.placed) {
+    placeBoardCreature(G, def.id, pid, targetId!);
+    // Кракен при установке топит весь флот в своей зоне (если фигура встала).
+    if (def.id === 'kraken' && boardCreatureAt(G, targetId!)?.kind === 'kraken') {
+      const sea = G.territories[targetId!];
+      if (isSea(sea) && sea.fleets > 0 && sea.ownerId) {
+        G.players[sea.ownerId].fleetsSupply = Math.min(UNIT_SUPPLY, G.players[sea.ownerId].fleetsSupply + sea.fleets);
+        sea.fleets = 0;
+        sea.ownerId = null;
+        log(G, `Кракен топит флот в ${sea.name}.`);
+      }
+    }
+  }
   // Купленное уходит в сброс, слот остаётся пустым (рубашкой вверх) и НЕ
   // сдвигается. Существо в этот слот придёт при следующей прокрутке (конец
   // хода или Зевс) — туда сдвинется верхнее существо.

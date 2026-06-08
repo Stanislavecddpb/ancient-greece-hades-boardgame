@@ -75,6 +75,23 @@ export function startFleetMove(G: CycladesState, pid: PlayerID, seaId: Territory
   return null;
 }
 
+/** Закрыта ли морская зона для флота: Кракен в ней или Полифем на соседнем острове. */
+function seaBlockedForFleet(G: CycladesState, seaId: TerritoryId): boolean {
+  if (G.boardCreatures.some((c) => c.kind === 'kraken' && c.location === seaId)) return true;
+  const sea = G.territories[seaId];
+  if (sea && isSea(sea)) {
+    for (const iid of sea.adjacentIslands) {
+      if (G.boardCreatures.some((c) => c.kind === 'polyphemus' && c.location === iid)) return true;
+    }
+  }
+  return false;
+}
+
+/** Медуза на острове запрещает уводить с него войска. */
+function medusaLocks(G: CycladesState, islandId: TerritoryId): boolean {
+  return G.boardCreatures.some((c) => c.kind === 'medusa' && c.location === islandId);
+}
+
 /**
  * Один переход приказа: ведёт `take` кораблей из текущей клетки в соседнюю.
  * Оставшиеся (carrying − take) высаживаются и остаются на месте. Вход во вражескую
@@ -89,6 +106,7 @@ export function hopFleet(G: CycladesState, pid: PlayerID, toId: TerritoryId, tak
   if (!at || !isSea(at) || !to || !isSea(to)) return 'не море';
   if (!at.adjacentSeas.includes(toId)) return 'не соседняя клетка';
   if (!Number.isInteger(take) || take < 1 || take > m.carrying) return 'неверное число кораблей';
+  if (seaBlockedForFleet(G, toId)) return 'зона закрыта (Кракен/Полифем)';
 
   // Оплата приказа — на первом переходе.
   if (!m.paid) {
@@ -142,6 +160,7 @@ export function troopReachable(G: CycladesState, fromIslandId: TerritoryId, pid:
   const from = G.territories[fromIslandId];
   const result = new Set<TerritoryId>();
   if (!from || !isIsland(from) || from.ownerId !== pid || from.troops <= 0) return result;
+  if (medusaLocks(G, fromIslandId)) return result; // Медуза: войска нельзя уводить
 
   // BFS по морским клеткам с нашим флотом, стартуя от морей рядом с островом.
   const bridgeVisited = new Set<TerritoryId>();
@@ -181,6 +200,7 @@ export function applyTroopMove(
   const from = G.territories[fromIslandId];
   const to = G.territories[toIslandId];
   if (!from || !isIsland(from) || from.ownerId !== pid) return 'нет своего острова';
+  if (medusaLocks(G, fromIslandId)) return 'остров под Медузой: войска нельзя уводить';
   if (!to || !isIsland(to)) return 'цель — не остров';
   if (!Number.isInteger(count) || count < 1) return 'неверное число войск';
   if (count > 3) return 'не больше 3 войск за перемещение';

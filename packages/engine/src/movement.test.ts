@@ -185,3 +185,46 @@ describe('интерактивный бой', () => {
     void b;
   });
 });
+
+describe('фигуры существ в движении', () => {
+  it('Медуза запрещает уводить войска с острова', () => {
+    const G = setupGame(ctxFor(2));
+    const home = G.territories['home_n'];
+    if (!isIsland(home)) throw new Error('home');
+    home.ownerId = '0'; home.troops = 3;
+    for (const sid of home.adjacentSeas) {
+      const s = G.territories[sid];
+      if (isSea(s)) { s.ownerId = '0'; s.fleets = 1; }
+    }
+    placeBoardCreature(G, 'medusa', '1', 'home_n');
+    expect(troopReachable(G, 'home_n', '0').size).toBe(0);
+    G.players['0'].gold = 5;
+    expect(applyTroopMove(G, '0', 'home_n', 'home_e', 1)).toBe('остров под Медузой: войска нельзя уводить');
+  });
+
+  it('Кракен закрывает морскую зону для флота', () => {
+    const G = setupGame(ctxFor(2));
+    G.players['0'].gold = 5;
+    const a = freshSeas(G).find((s) => s.adjacentSeas.some((nb) => isSea(G.territories[nb])))!;
+    const bId = a.adjacentSeas.find((nb) => isSea(G.territories[nb]))!;
+    a.ownerId = '0'; a.fleets = 1;
+    placeBoardCreature(G, 'kraken', '1', bId);
+    startFleetMove(G, '0', a.id);
+    expect(hopFleet(G, '0', bId, 1)).toBe('зона закрыта (Кракен/Полифем)');
+  });
+
+  it('Полифем не пускает флот в соседние зоны своего острова', () => {
+    const G = setupGame(ctxFor(2));
+    G.players['0'].gold = 5;
+    // ищем море, соседнее с островом, и своё море рядом с этим морем
+    const isl = Object.values(G.territories).find(isIsland)!;
+    const adjSeaId = isl.adjacentSeas.find((sid) => isSea(G.territories[sid]))!;
+    const adjSea = G.territories[adjSeaId] as Sea;
+    const myId = adjSea.adjacentSeas.find((sid) => isSea(G.territories[sid]))!;
+    const my = G.territories[myId] as Sea;
+    my.ownerId = '0'; my.fleets = 1;
+    placeBoardCreature(G, 'polyphemus', '1', isl.id);
+    startFleetMove(G, '0', myId);
+    expect(hopFleet(G, '0', adjSeaId, 1)).toBe('зона закрыта (Кракен/Полифем)');
+  });
+});
