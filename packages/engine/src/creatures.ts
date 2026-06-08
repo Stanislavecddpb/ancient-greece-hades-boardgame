@@ -3,9 +3,11 @@ import {
   type PlayerID,
   type CreatureMarket,
   UNIT_SUPPLY,
+  ALL_BUILDINGS,
 } from './types';
 import { isIsland, isSea } from './board';
 import { islandsOf, log } from './helpers';
+import { incomeFor } from './income';
 import { canPlaceFleet } from './actions';
 import { checkMetropolis } from './metropolis';
 
@@ -35,11 +37,96 @@ function richestOpponent(G: CycladesState, pid: PlayerID): PlayerID | null {
   return best;
 }
 
-/** Каталог существ. Эффекты — немедленные, исполняются при покупке. */
+/** Соперник с наибольшим значением поля (priests/philosophers), > 0, или null. */
+function opponentWithMost(G: CycladesState, pid: PlayerID, field: 'priests' | 'philosophers'): PlayerID | null {
+  let best: PlayerID | null = null;
+  for (const [id, p] of Object.entries(G.players)) {
+    if (id === pid || p.isEliminated || p[field] <= 0) continue;
+    if (best === null || p[field] > G.players[best][field]) best = id;
+  }
+  return best;
+}
+
+/**
+ * Каталог мифических существ (имена — как в правилах). Эффекты немедленные.
+ * Часть существ в оригинале «ставится фигурой на остров» и действует до
+ * следующего хода; здесь они реализованы ближайшим немедленным эффектом.
+ */
 export const CREATURES: Record<string, CreatureDef> = {
-  minotaur: {
-    id: 'minotaur', name: 'Минотавр', emblem: '🐂', cost: 4, target: 'own-island',
-    desc: 'Призовите 2 воина на свой остров',
+  chimera: {
+    id: 'chimera', name: 'Химера', emblem: '🦁', cost: 4, target: 'none',
+    desc: 'Перетасуйте сброс обратно в колоду',
+    apply: (G) => {
+      G.creatures.deck.push(...G.creatures.discard);
+      G.creatures.discard = [];
+      return null;
+    },
+  },
+  cyclops: {
+    id: 'cyclops', name: 'Циклоп', emblem: '🛠️', cost: 2, target: 'own-island',
+    desc: 'Замените здание на острове на другой тип',
+    apply: (G, pid, tid) => {
+      const isl = G.territories[tid!];
+      if (!isIsland(isl) || isl.buildings.length === 0) return 'нужно своё здание';
+      const missing = ALL_BUILDINGS.find((t) => !isl.buildings.some((b) => b.type === t));
+      if (!missing) return 'все типы зданий уже есть';
+      isl.buildings[0] = { type: missing, ownerId: pid };
+      checkMetropolis(G, pid);
+      return null;
+    },
+  },
+  dryad: {
+    id: 'dryad', name: 'Дриада', emblem: '🌳', cost: 2, target: 'none',
+    desc: 'Украдите жреца у соперника',
+    apply: (G, pid) => {
+      const v = opponentWithMost(G, pid, 'priests');
+      if (!v) return 'не у кого красть жреца';
+      G.players[v].priests -= 1;
+      G.players[pid].priests += 1;
+      return null;
+    },
+  },
+  fates: {
+    id: 'fates', name: 'Мойры', emblem: '🧵', cost: 3, target: 'none',
+    desc: 'Получите доход ещё раз',
+    apply: (G, pid) => { G.players[pid].gold += incomeFor(G, pid); return null; },
+  },
+  giant: {
+    id: 'giant', name: 'Гигант', emblem: '🗿', cost: 3, target: 'enemy-island',
+    desc: 'Разрушьте здание на вражеском острове (не Метрополию)',
+    apply: (G, _pid, tid) => {
+      const isl = G.territories[tid!];
+      if (!isIsland(isl) || isl.buildings.length === 0) return 'нет здания для сноса';
+      isl.buildings.pop();
+      return null;
+    },
+  },
+  griffon: {
+    id: 'griffon', name: 'Грифон', emblem: '🦅', cost: 3, target: 'none',
+    desc: 'Украдите половину золота богатейшего соперника',
+    apply: (G, pid) => {
+      const v = richestOpponent(G, pid);
+      if (!v) return null;
+      const stolen = Math.floor(G.players[v].gold / 2);
+      G.players[v].gold -= stolen;
+      G.players[pid].gold += stolen;
+      return null;
+    },
+  },
+  harpy: {
+    id: 'harpy', name: 'Гарпия', emblem: '🪶', cost: 2, target: 'enemy-island',
+    desc: 'Уберите вражеского воина (вернётся в запас владельцу)',
+    apply: (G, _pid, tid) => {
+      const isl = G.territories[tid!];
+      if (!isIsland(isl) || isl.troops <= 0 || !isl.ownerId) return 'нет вражеского войска';
+      isl.troops -= 1;
+      G.players[isl.ownerId].troopsSupply = Math.min(UNIT_SUPPLY, G.players[isl.ownerId].troopsSupply + 1);
+      return null;
+    },
+  },
+  pegasus: {
+    id: 'pegasus', name: 'Пегас', emblem: '🐎', cost: 3, target: 'own-island',
+    desc: 'Призовите до 2 воинов на свой остров',
     apply: (G, pid, tid) => {
       const p = G.players[pid];
       if (p.troopsSupply <= 0) return 'нет фигурок войск в запасе';
@@ -51,23 +138,88 @@ export const CREATURES: Record<string, CreatureDef> = {
       return null;
     },
   },
-  pegasus: {
-    id: 'pegasus', name: 'Пегас', emblem: '🐎', cost: 3, target: 'own-sea',
+  satyr: {
+    id: 'satyr', name: 'Сатир', emblem: '🍇', cost: 2, target: 'none',
+    desc: 'Украдите философа у соперника',
+    apply: (G, pid) => {
+      const v = opponentWithMost(G, pid, 'philosophers');
+      if (!v) return 'не у кого красть философа';
+      G.players[v].philosophers -= 1;
+      G.players[pid].philosophers += 1;
+      checkMetropolis(G, pid);
+      return null;
+    },
+  },
+  siren: {
+    id: 'siren', name: 'Сирена', emblem: '🎶', cost: 3, target: 'enemy-sea',
+    desc: 'Уберите вражеский корабль; если зона опустела — займите её своим',
+    apply: (G, pid, tid) => {
+      const sea = G.territories[tid!];
+      if (!isSea(sea) || sea.fleets <= 0 || !sea.ownerId) return 'нет вражеского флота';
+      const owner = sea.ownerId;
+      sea.fleets -= 1;
+      G.players[owner].fleetsSupply = Math.min(UNIT_SUPPLY, G.players[owner].fleetsSupply + 1);
+      if (sea.fleets === 0) {
+        if (G.players[pid].fleetsSupply > 0) {
+          sea.fleets = 1;
+          sea.ownerId = pid;
+          G.players[pid].fleetsSupply -= 1;
+        } else {
+          sea.ownerId = null;
+        }
+      }
+      return null;
+    },
+  },
+  sphinx: {
+    id: 'sphinx', name: 'Сфинкс', emblem: '🦁', cost: 2, target: 'none',
+    desc: 'Продайте все свои войска/флот/жрецов/философов по 2 золота',
+    apply: (G, pid) => {
+      const p = G.players[pid];
+      let n = 0;
+      for (const t of Object.values(G.territories)) {
+        if (isSea(t) && t.ownerId === pid && t.fleets > 0) {
+          n += t.fleets; p.fleetsSupply = Math.min(UNIT_SUPPLY, p.fleetsSupply + t.fleets);
+          t.fleets = 0; t.ownerId = null;
+        }
+        if (isIsland(t) && t.ownerId === pid && t.troops > 0) {
+          n += t.troops; p.troopsSupply = Math.min(UNIT_SUPPLY, p.troopsSupply + t.troops);
+          t.troops = 0; // остров остаётся под контролем (жетон)
+        }
+      }
+      n += p.priests + p.philosophers;
+      p.priests = 0; p.philosophers = 0;
+      p.gold += n * 2;
+      return null;
+    },
+  },
+  sylph: {
+    id: 'sylph', name: 'Сильфида', emblem: '🌬️', cost: 2, target: 'own-sea',
     desc: 'Поставьте корабль в свою морскую зону',
     apply: (G, pid, tid) => {
       const p = G.players[pid];
       if (p.fleetsSupply <= 0) return 'нет фигурок флота в запасе';
       const sea = G.territories[tid!];
       if (!isSea(sea)) return 'нужна морская зона';
-      sea.fleets += 1;
-      sea.ownerId = pid;
-      p.fleetsSupply -= 1;
+      sea.fleets += 1; sea.ownerId = pid; p.fleetsSupply -= 1;
       return null;
     },
   },
-  cyclops: {
-    id: 'cyclops', name: 'Циклоп', emblem: '👁', cost: 3, target: 'enemy-island',
-    desc: 'Уничтожьте 1 вражеского воина',
+  chiron: {
+    id: 'chiron', name: 'Хирон', emblem: '🏹', cost: 2, target: 'own-island',
+    desc: 'Поставьте воина-защитника на свой остров',
+    apply: (G, pid, tid) => {
+      const p = G.players[pid];
+      if (p.troopsSupply <= 0) return 'нет фигурок войск в запасе';
+      const isl = G.territories[tid!];
+      if (!isIsland(isl)) return 'нужен остров';
+      isl.troops += 1; p.troopsSupply -= 1;
+      return null;
+    },
+  },
+  medusa: {
+    id: 'medusa', name: 'Медуза', emblem: '🐍', cost: 2, target: 'enemy-island',
+    desc: 'Обратите в камень вражеского воина (−1)',
     apply: (G, _pid, tid) => {
       const isl = G.territories[tid!];
       if (!isIsland(isl) || isl.troops <= 0 || !isl.ownerId) return 'нет вражеского войска';
@@ -76,53 +228,49 @@ export const CREATURES: Record<string, CreatureDef> = {
       return null;
     },
   },
+  minotaur: {
+    id: 'minotaur', name: 'Минотавр', emblem: '🐂', cost: 3, target: 'own-island',
+    desc: 'Призовите 2 воина (защитников) на свой остров',
+    apply: (G, pid, tid) => {
+      const p = G.players[pid];
+      if (p.troopsSupply <= 0) return 'нет фигурок войск в запасе';
+      const isl = G.territories[tid!];
+      if (!isIsland(isl)) return 'нужен остров';
+      const add = Math.min(2, p.troopsSupply);
+      isl.troops += add; p.troopsSupply -= add;
+      return null;
+    },
+  },
+  polyphemus: {
+    id: 'polyphemus', name: 'Полифем', emblem: '👁️', cost: 3, target: 'own-sea',
+    desc: 'Поставьте 2 корабля в свою морскую зону',
+    apply: (G, pid, tid) => {
+      const p = G.players[pid];
+      if (p.fleetsSupply <= 0) return 'нет фигурок флота в запасе';
+      const sea = G.territories[tid!];
+      if (!isSea(sea)) return 'нужна морская зона';
+      const add = Math.min(2, p.fleetsSupply);
+      sea.fleets += add; sea.ownerId = pid; p.fleetsSupply -= add;
+      return null;
+    },
+  },
   kraken: {
     id: 'kraken', name: 'Кракен', emblem: '🦑', cost: 4, target: 'enemy-sea',
-    desc: 'Потопите 1 вражеский корабль',
+    desc: 'Уничтожьте весь вражеский флот в морской зоне',
     apply: (G, _pid, tid) => {
       const sea = G.territories[tid!];
       if (!isSea(sea) || sea.fleets <= 0 || !sea.ownerId) return 'нет вражеского флота';
       const owner = sea.ownerId;
-      sea.fleets -= 1;
-      G.players[owner].fleetsSupply = Math.min(UNIT_SUPPLY, G.players[owner].fleetsSupply + 1);
-      if (sea.fleets === 0) sea.ownerId = null;
+      G.players[owner].fleetsSupply = Math.min(UNIT_SUPPLY, G.players[owner].fleetsSupply + sea.fleets);
+      sea.fleets = 0; sea.ownerId = null;
       return null;
     },
-  },
-  harpies: {
-    id: 'harpies', name: 'Гарпии', emblem: '🦅', cost: 2, target: 'none',
-    desc: 'Украдите 2 золота у богатейшего соперника',
-    apply: (G, pid) => {
-      const victim = richestOpponent(G, pid);
-      if (!victim) return null; // некого грабить — эффект «впустую», но покупка валидна
-      const stolen = Math.min(2, G.players[victim].gold);
-      G.players[victim].gold -= stolen;
-      G.players[pid].gold += stolen;
-      return null;
-    },
-  },
-  satyrs: {
-    id: 'satyrs', name: 'Сатиры', emblem: '🍇', cost: 1, target: 'none',
-    desc: 'Получите 3 золота из казны',
-    apply: (G, pid) => { G.players[pid].gold += 3; return null; },
-  },
-  nymph: {
-    id: 'nymph', name: 'Нимфа', emblem: '💧', cost: 2, target: 'none',
-    desc: 'Получите 1 жреца (скидка на ставки)',
-    apply: (G, pid) => { G.players[pid].priests += 1; return null; },
-  },
-  muse: {
-    id: 'muse', name: 'Муза', emblem: '🎼', cost: 2, target: 'none',
-    desc: 'Получите 1 философа',
-    apply: (G, pid) => { G.players[pid].philosophers += 1; checkMetropolis(G, pid); return null; },
   },
 };
 
-/** Колода: каждое существо по 2 экземпляра. */
+/** Колода: каждое существо по одному экземпляру. */
 export function makeCreatureDeck(): string[] {
-  const deck: string[] = [];
-  for (const id of Object.keys(CREATURES)) { deck.push(id, id); }
-  return deck;
+  return Object.keys(CREATURES);
 }
 
 /** Создаёт стартовый рынок: колода (опц. перемешана) и 3 открытых существа. */
