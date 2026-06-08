@@ -7,6 +7,7 @@ import {
   type TerritoryId,
   GOD_BUILDING,
   CREATURES,
+  chimeraPlayable,
   creaturePriceAt,
   CREATURE_SLOT_PRICES,
   metropolisCount,
@@ -120,6 +121,13 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
       return isSea(t) && !(t.fleets > 0 && t.ownerId !== me);
     });
     if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.sylphStep(sel.id, to); setSelected(to); } };
+  } else if (canAct && me && G.pegasusMove === me && sel && isIsland(sel) && sel.ownerId === me && sel.troops > 0) {
+    // Пегас: выбран свой остров-источник — стрелки на ДРУГИЕ свои острова (без моста).
+    const n = Math.min(Math.max(1, troopCount), sel.troops);
+    const targets = Object.values(G.territories)
+      .filter((t): t is Territory => isIsland(t) && t.ownerId === me && t.id !== sel.id)
+      .map((t) => t.id);
+    if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.pegasusMove(sel.id, to, n); setSelected(null); } };
   } else if (canAct && me && G.fleetMove && G.fleetMove.playerId === me) {
     // Идёт приказ флоту: стрелки в соседние клетки от текущей позиции группы.
     const at = G.territories[G.fleetMove.at];
@@ -153,6 +161,11 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
           <SylphPanel G={G} moves={moves} />
         ) : G.sphinxResell === me ? (
           <SphinxPanel G={G} me={me} moves={moves} />
+        ) : G.pegasusMove === me ? (
+          <PegasusPanel G={G} me={me} moves={moves} selected={selected}
+            troopCount={troopCount} setTroopCount={setTroopCount} />
+        ) : G.chimeraPick === me ? (
+          <ChimeraPanel G={G} me={me} moves={moves} selected={selected} />
         ) : ctx.phase === 'actions' && G.pendingCornucopia ? (
           G.pendingCornucopia === me ? (
             <ProsperityPrompt G={G} me={me} moves={moves} selected={selected} />
@@ -521,6 +534,66 @@ function SphinxPanel({ G, me, moves }: { G: CycladesState; me: string | null; mo
         {num(ph, setPh, pl.philosophers, '📜 философы')}
         <span className="sel-hint">итого +{total * 2}🪙</span>
         <button className="end-turn" onClick={() => moves.sellUnits(ef, et, epr, eph)}>Продать / Готово</button>
+      </div>
+    </div>
+  );
+}
+
+/** Пегас: переброска войск со своего острова на другой свой остров (без моста). */
+function PegasusPanel({ G, me, moves, selected, troopCount, setTroopCount }: {
+  G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null;
+  troopCount: number; setTroopCount: (n: number) => void;
+}) {
+  const sel = selected ? G.territories[selected] : null;
+  const source = !!sel && isIsland(sel) && sel.ownerId === me && sel.troops > 0;
+  const max = source ? (sel as any).troops : 1;
+  return (
+    <div className="action-bar fleetmove">
+      <div className="ab-title">🐎 Пегас: перебросьте войска на другой свой остров</div>
+      <div className="ab-controls">
+        <span className="sel-hint">{source ? sel!.name : 'выберите свой остров-источник'}</span>
+        {source && (
+          <span className="move-box">
+            <span>войск:</span>
+            <input type="number" min={1} max={max} value={Math.min(troopCount, max)} style={{ width: 40 }}
+              onChange={(e) => setTroopCount(Math.max(1, Math.min(max, Number(e.target.value))))} />
+            <span className="sel-hint">→ кликните стрелку к своему острову</span>
+          </span>
+        )}
+        <button className="end-turn" onClick={() => moves.endPegasus()}>Отмена</button>
+      </div>
+    </div>
+  );
+}
+
+/** Химера: разыграть существо из сброса, затем сброс уходит в колоду. */
+function ChimeraPanel({ G, me, moves, selected }: {
+  G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null;
+}) {
+  const sel = selected ? G.territories[selected] : null;
+  // Уникальные разыгрываемые существа из сброса (фигурные/Химера — нельзя).
+  const playable = [...new Set(G.creatures.discard)].filter((id) => chimeraPlayable(id));
+  return (
+    <div className="action-bar sphinx">
+      <div className="ab-title">🦁 Химера: разыграйте существо из сброса (затем сброс уйдёт в колоду)</div>
+      <div className="ab-controls">
+        {playable.length === 0 && <span className="sel-hint">в сбросе нет подходящих существ</span>}
+        <span className="creature-buy">
+          {playable.map((id) => {
+            const d = CREATURES[id];
+            const needsTarget = d.target !== 'none';
+            const targetOk = creatureTargetOk(d, sel, me!);
+            const disabled = needsTarget && !targetOk;
+            const title = needsTarget && !targetOk ? `выберите цель: ${d.target}` : d.desc;
+            return (
+              <button key={id} className="cr-buy" disabled={disabled} title={title}
+                onClick={() => moves.chimeraReplay(id, needsTarget ? selected : undefined)}>
+                {d.emblem} {d.name}
+              </button>
+            );
+          })}
+        </span>
+        <button className="end-turn" onClick={() => moves.endChimera()}>Пропустить</button>
       </div>
     </div>
   );

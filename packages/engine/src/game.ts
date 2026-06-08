@@ -24,8 +24,8 @@ import {
 } from './actions';
 import { metropolisCount, islandsOf, log } from './helpers';
 import { applyBuildMetropolis } from './metropolis';
-import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits } from './creatures';
-import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus } from './movement';
+import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits, applyChimeraReplay, endChimera } from './creatures';
+import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus, applyPegasusMove, endPegasus } from './movement';
 import { dieFromRandom } from './combat';
 import type { TerritoryId as TId } from './types';
 
@@ -214,6 +214,24 @@ export const CycladesGame: Game<CycladesState> = {
         // Полифем: завершить отталкивание досрочно.
         endPolyphemus: ({ G, playerID }) => {
           if (endPolyphemus(G, playerID!)) return INVALID_MOVE;
+        },
+
+        // Пегас: переброска войск со своего острова на другой свой остров.
+        pegasusMove: ({ G, playerID }, fromId: TId, toId: TId, count: number) => {
+          if (applyPegasusMove(G, playerID!, fromId, toId, count)) return INVALID_MOVE;
+        },
+        // Пегас: отменить переброску.
+        endPegasus: ({ G, playerID }) => {
+          if (endPegasus(G, playerID!)) return INVALID_MOVE;
+        },
+
+        // Химера: разыграть существо из сброса (с целью, если нужно).
+        chimeraReplay: ({ G, playerID }, creatureId: string, targetId?: TId) => {
+          if (applyChimeraReplay(G, playerID!, creatureId, targetId)) return INVALID_MOVE;
+        },
+        // Химера: отказаться разыгрывать (просто перетасовать сброс в колоду).
+        endChimera: ({ G, playerID }) => {
+          if (endChimera(G, playerID!)) return INVALID_MOVE;
         },
 
         // Аполлон: первый выбравший кладёт рог изобилия на свой остров.

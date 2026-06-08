@@ -265,6 +265,10 @@ export interface CycladesState {
   sylphMove: SylphMoveState | null;
   /** Активное отталкивание флота Полифемом или null. */
   polyphemusPush: PolyphemusPushState | null;
+  /** Игрок, перемещающий войска Пегасом (остров→остров без моста), или null. */
+  pegasusMove: PlayerID | null;
+  /** Игрок, выбирающий существо из сброса (Химера), или null. */
+  chimeraPick: PlayerID | null;
   log: LogEntry[];
 }
 

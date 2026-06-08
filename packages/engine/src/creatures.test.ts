@@ -11,8 +11,11 @@ import {
   placeBoardCreature,
   expireBoardCreatures,
   applySellUnits,
+  applyChimeraReplay,
+  endChimera,
 } from './creatures';
-import type { CycladesState } from './types';
+import { applyPegasusMove } from './movement';
+import type { CycladesState, Sea } from './types';
 
 function ctxFor(n: number): Ctx {
   return {
@@ -186,5 +189,102 @@ describe('фигуры существ на доске', () => {
     if (enemy.kind === 'island') { enemy.ownerId = '1'; enemy.buildings = [{ type: 'port', ownerId: '1' }]; }
     placeBoardCreature(G, 'chiron', '1', 'home_e');
     expect(applyBuyCreature(G, '0', 0, 'home_e')).toBe('остров под защитой Хирона');
+  });
+});
+
+describe('Пегас', () => {
+  it('покупка открывает переброску; войска едут со своего острова на свой без моста', () => {
+    const G = withMarket(['pegasus', 'a', 'b']);
+    G.players['0'].gold = 9;
+    expect(applyBuyCreature(G, '0', 0)).toBeNull();
+    expect(G.pegasusMove).toBe('0');
+    const a = G.territories['home_n'];
+    const b = G.territories['home_e'];
+    if (a.kind === 'island') { a.ownerId = '0'; a.troops = 3; }
+    if (b.kind === 'island') { b.ownerId = '0'; b.troops = 0; }
+    expect(applyPegasusMove(G, '0', 'home_n', 'home_e', 2)).toBeNull();
+    if (a.kind === 'island') expect(a.troops).toBe(1);
+    if (b.kind === 'island') expect(b.troops).toBe(2);
+    expect(G.pegasusMove).toBeNull();
+  });
+
+  it('нельзя перебросить на чужой остров', () => {
+    const G = withMarket(['pegasus', 'a', 'b']);
+    G.players['0'].gold = 9;
+    applyBuyCreature(G, '0', 0);
+    const a = G.territories['home_n'];
+    const b = G.territories['home_e'];
+    if (a.kind === 'island') { a.ownerId = '0'; a.troops = 3; }
+    if (b.kind === 'island') { b.ownerId = '1'; b.troops = 1; }
+    expect(applyPegasusMove(G, '0', 'home_n', 'home_e', 1)).toBe('цель — не ваш остров');
+  });
+});
+
+describe('Сирена', () => {
+  it('убирает вражеский корабль и занимает опустевшую зону своим из запаса', () => {
+    const G = withMarket(['siren', 'a', 'b']);
+    G.players['0'].gold = 9;
+    const sea = Object.values(G.territories).find((t): t is Sea => t.kind === 'sea')!;
+    sea.ownerId = '1'; sea.fleets = 1;
+    G.players['1'].fleetsSupply = 0;
+    G.players['0'].fleetsSupply = 3;
+    expect(applyBuyCreature(G, '0', 0, sea.id)).toBeNull();
+    expect(sea.fleets).toBe(1);
+    expect(sea.ownerId).toBe('0');
+    expect(G.players['1'].fleetsSupply).toBe(1); // вражеский вернулся в запас
+    expect(G.players['0'].fleetsSupply).toBe(2); // свой ушёл из запаса на доску
+  });
+
+  it('без запаса берёт корабль с другой своей зоны', () => {
+    const G = withMarket(['siren', 'a', 'b']);
+    G.players['0'].gold = 9;
+    const seas = Object.values(G.territories).filter((t): t is Sea => t.kind === 'sea');
+    const enemySea = seas[0];
+    const ownSea = seas[1];
+    enemySea.ownerId = '1'; enemySea.fleets = 1;
+    ownSea.ownerId = '0'; ownSea.fleets = 1;
+    G.players['0'].fleetsSupply = 0;
+    expect(applyBuyCreature(G, '0', 0, enemySea.id)).toBeNull();
+    expect(enemySea.fleets).toBe(1);
+    expect(enemySea.ownerId).toBe('0');
+    expect(ownSea.fleets).toBe(0);
+    expect(ownSea.ownerId).toBeNull();
+  });
+});
+
+describe('Химера', () => {
+  it('разыгрывает существо из сброса, затем сброс уходит в колоду', () => {
+    const G = withMarket(['chimera', 'a', 'b']);
+    G.players['0'].gold = 9; G.players['1'].gold = 8;
+    G.creatures.discard = ['griffon'];
+    expect(applyBuyCreature(G, '0', 0)).toBeNull(); // верхний слот — 4
+    expect(G.chimeraPick).toBe('0');
+    expect(G.creatures.discard).toContain('chimera');
+    expect(applyChimeraReplay(G, '0', 'griffon')).toBeNull(); // крадёт половину золота
+    expect(G.players['1'].gold).toBe(4);
+    expect(G.players['0'].gold).toBe(9 - 4 + 4);
+    expect(G.chimeraPick).toBeNull();
+    expect(G.creatures.discard).toHaveLength(0);
+    expect(G.creatures.deck).toContain('griffon');
+    expect(G.creatures.deck).toContain('chimera');
+  });
+
+  it('нельзя разыграть фигурное существо', () => {
+    const G = withMarket(['chimera', 'a', 'b']);
+    G.players['0'].gold = 9;
+    G.creatures.discard = ['kraken'];
+    applyBuyCreature(G, '0', 0);
+    expect(applyChimeraReplay(G, '0', 'kraken')).toBe('Химерой нельзя разыграть это существо');
+  });
+
+  it('endChimera перетасовывает сброс без розыгрыша', () => {
+    const G = withMarket(['chimera', 'a', 'b']);
+    G.players['0'].gold = 9;
+    G.creatures.discard = ['dryad'];
+    applyBuyCreature(G, '0', 0);
+    expect(endChimera(G, '0')).toBeNull();
+    expect(G.chimeraPick).toBeNull();
+    expect(G.creatures.discard).toHaveLength(0);
+    expect(G.creatures.deck).toContain('dryad');
   });
 });

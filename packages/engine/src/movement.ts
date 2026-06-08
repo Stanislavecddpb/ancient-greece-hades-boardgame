@@ -223,6 +223,34 @@ export function endPolyphemus(G: CycladesState, pid: PlayerID): string | null {
   return null;
 }
 
+/**
+ * Пегас: переброска войск с одного своего острова на другой без «моста» из флотов
+ * (и без боя — только между своими островами). Один перенос, затем режим закрывается.
+ */
+export function applyPegasusMove(
+  G: CycladesState, pid: PlayerID, fromIslandId: TerritoryId, toIslandId: TerritoryId, count: number,
+): string | null {
+  if (G.pegasusMove !== pid) return 'нет переброски Пегаса';
+  const from = G.territories[fromIslandId];
+  const to = G.territories[toIslandId];
+  if (!from || !isIsland(from) || from.ownerId !== pid || from.troops <= 0) return 'нет своего острова с войсками';
+  if (!to || !isIsland(to) || to.ownerId !== pid) return 'цель — не ваш остров';
+  if (fromIslandId === toIslandId) return 'нужен другой остров';
+  if (!Number.isInteger(count) || count < 1 || count > from.troops) return 'неверное число войск';
+  from.troops -= count;
+  to.troops += count;
+  log(G, `${G.players[pid].name}: Пегас переносит ${count} войск → ${to.name}.`);
+  G.pegasusMove = null;
+  return null;
+}
+
+/** Отменить переброску Пегасом (ничего не двигая). */
+export function endPegasus(G: CycladesState, pid: PlayerID): string | null {
+  if (G.pegasusMove !== pid) return 'нет переброски Пегаса';
+  G.pegasusMove = null;
+  return null;
+}
+
 // --- Войска ---
 
 /** Острова, достижимые для войск с fromIsland по «мосту» из своих флотов. */

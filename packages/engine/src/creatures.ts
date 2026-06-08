@@ -58,12 +58,8 @@ function opponentWithMost(G: CycladesState, pid: PlayerID, field: 'priests' | 'p
 export const CREATURES: Record<string, CreatureDef> = {
   chimera: {
     id: 'chimera', name: 'Химера', emblem: '🦁', cost: 4, target: 'none',
-    desc: 'Перетасуйте сброс обратно в колоду',
-    apply: (G) => {
-      G.creatures.deck.push(...G.creatures.discard);
-      G.creatures.discard = [];
-      return null;
-    },
+    desc: 'Разыграйте существо из сброса, затем сброс уходит в колоду',
+    apply: (G, pid) => { G.chimeraPick = pid; return null; },
   },
   cyclops: {
     id: 'cyclops', name: 'Циклоп', emblem: '🛠️', cost: 2, target: 'own-island',
@@ -128,18 +124,9 @@ export const CREATURES: Record<string, CreatureDef> = {
     },
   },
   pegasus: {
-    id: 'pegasus', name: 'Пегас', emblem: '🐎', cost: 3, target: 'own-island',
-    desc: 'Призовите до 2 воинов на свой остров',
-    apply: (G, pid, tid) => {
-      const p = G.players[pid];
-      if (p.troopsSupply <= 0) return 'нет фигурок войск в запасе';
-      const isl = G.territories[tid!];
-      if (!isIsland(isl)) return 'нужен остров';
-      const add = Math.min(2, p.troopsSupply);
-      isl.troops += add;
-      p.troopsSupply -= add;
-      return null;
-    },
+    id: 'pegasus', name: 'Пегас', emblem: '🐎', cost: 3, target: 'none',
+    desc: 'Перебросьте войска с одного своего острова на другой без моста из флотов',
+    apply: (G, pid) => { G.pegasusMove = pid; return null; },
   },
   satyr: {
     id: 'satyr', name: 'Сатир', emblem: '🍇', cost: 2, target: 'none',
@@ -155,20 +142,32 @@ export const CREATURES: Record<string, CreatureDef> = {
   },
   siren: {
     id: 'siren', name: 'Сирена', emblem: '🎶', cost: 3, target: 'enemy-sea',
-    desc: 'Уберите вражеский корабль; если зона опустела — займите её своим',
+    desc: 'Замените вражеский корабль своим (из запаса, иначе — с другой своей зоны)',
     apply: (G, pid, tid) => {
       const sea = G.territories[tid!];
       if (!isSea(sea) || sea.fleets <= 0 || !sea.ownerId) return 'нет вражеского флота';
       const owner = sea.ownerId;
+      // Убираем один вражеский корабль (возвращается владельцу в запас).
       sea.fleets -= 1;
       G.players[owner].fleetsSupply = Math.min(UNIT_SUPPLY, G.players[owner].fleetsSupply + 1);
-      if (sea.fleets === 0) {
-        if (G.players[pid].fleetsSupply > 0) {
+      if (sea.fleets > 0) return null; // в зоне ещё есть чужие корабли — свой не поставить
+
+      // Зона освободилась — ставим свой корабль: из запаса, иначе с другой своей зоны.
+      if (G.players[pid].fleetsSupply > 0) {
+        G.players[pid].fleetsSupply -= 1;
+        sea.fleets = 1;
+        sea.ownerId = pid;
+      } else {
+        const donor = Object.values(G.territories).find(
+          (t) => isSea(t) && t.id !== sea.id && t.ownerId === pid && t.fleets > 0,
+        );
+        if (donor && isSea(donor)) {
+          donor.fleets -= 1;
+          if (donor.fleets === 0) donor.ownerId = null;
           sea.fleets = 1;
           sea.ownerId = pid;
-          G.players[pid].fleetsSupply -= 1;
         } else {
-          sea.ownerId = null;
+          sea.ownerId = null; // нет кораблей нигде — зона просто пустеет
         }
       }
       return null;
@@ -438,6 +437,55 @@ export function applySellUnits(
   p.gold += total * 2;
   G.sphinxResell = null;
   if (total > 0) log(G, `${p.name} распродаёт юнитов: ${total} (+${total * 2}🪙).`);
+  return null;
+}
+
+/** Перетасовать сброс существ обратно в колоду (хвост Химеры). */
+function reshuffleDiscardIntoDeck(G: CycladesState): void {
+  G.creatures.deck.push(...G.creatures.discard);
+  G.creatures.discard = [];
+}
+
+/** Существа, которые Химера может разыграть из сброса (немгновенные/фигурные — нельзя). */
+export function chimeraPlayable(creatureId: string): boolean {
+  const def = CREATURES[creatureId];
+  return !!def && !def.placed && def.id !== 'chimera';
+}
+
+/**
+ * Химера: разыграть выбранное существо из сброса, затем перетасовать сброс в колоду.
+ * Возвращает текст ошибки или null.
+ */
+export function applyChimeraReplay(
+  G: CycladesState, pid: PlayerID, creatureId: string, targetId?: string,
+): string | null {
+  if (G.chimeraPick !== pid) return 'сейчас не ваш выбор Химеры';
+  if (!G.creatures.discard.includes(creatureId)) return 'этого существа нет в сбросе';
+  const def = CREATURES[creatureId];
+  if (!def) return 'неизвестное существо';
+  if (!chimeraPlayable(creatureId)) return 'Химерой нельзя разыграть это существо';
+
+  const targetErr = validateTarget(G, pid, def, targetId);
+  if (targetErr) return targetErr;
+  // Хирон защищает остров от Пегаса, Гиганта и Гарпии (как при обычной покупке).
+  if (targetId && (def.id === 'giant' || def.id === 'harpy' || def.id === 'pegasus')) {
+    const fig = G.boardCreatures.find((c) => c.location === targetId);
+    if (fig && fig.kind === 'chiron') return 'остров под защитой Хирона';
+  }
+  const applyErr = def.apply(G, pid, targetId);
+  if (applyErr) return applyErr;
+
+  log(G, `${G.players[pid].name}: Химера разыгрывает ${def.name}. ${def.desc}.`);
+  reshuffleDiscardIntoDeck(G);
+  G.chimeraPick = null;
+  return null;
+}
+
+/** Химера: отказаться от разыгрывания — просто перетасовать сброс в колоду. */
+export function endChimera(G: CycladesState, pid: PlayerID): string | null {
+  if (G.chimeraPick !== pid) return 'сейчас не ваш выбор Химеры';
+  reshuffleDiscardIntoDeck(G);
+  G.chimeraPick = null;
   return null;
 }
 

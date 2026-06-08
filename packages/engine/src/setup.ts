@@ -82,6 +82,8 @@ export function setupGame(ctx: Ctx, random?: RandomAPI): CycladesState {
     sphinxResell: null,
     sylphMove: null,
     polyphemusPush: null,
+    pegasusMove: null,
+    chimeraPick: null,
     log: [{ cycle: 1, text: 'Партия началась. Боги ждут подношений.' }],
   };
 }
