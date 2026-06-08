@@ -152,10 +152,12 @@ function SeaCell({ sea, G, selected, color, onSelect }: {
           {sea.fleets > 4 && <Badge x={x + SEA_R - 4} y={y - SEA_R + 4} text={sea.fleets} />}
         </g>
       )}
-      {/* рог изобилия — сверху клетки, поверх кораблей */}
+      {/* рог изобилия — сверху клетки, поверх кораблей; в столбик при count>1 */}
       {sea.cornucopia > 0 && (
-        <g transform={`translate(${x} ${y - SEA_R * 0.6})`}>
-          <CoinStack count={sea.cornucopia} />
+        <g transform={`translate(${x} ${y - SEA_R * 0.62})`}>
+          {Array.from({ length: sea.cornucopia }, (_, k) => (
+            <g key={k} transform={`translate(0 ${k * 18})`}><CoinStack /></g>
+          ))}
         </g>
       )}
     </g>
@@ -224,10 +226,12 @@ function IslandNode({ isl, G, me, selected, color, onSelect }: {
         </g>
       )}
 
-      {/* рога изобилия на суше — поверх фишек, чтобы доход было видно */}
+      {/* рога изобилия на суше — по одной иконке на рог, в столбик при count>1 */}
       {isl.cornucopiaSpots.map((s, i) => (
-        <g key={i} transform={`translate(${s.pos.x - LAND_R * 0.52} ${s.pos.y - LAND_R * 0.4})`}>
-          <CoinStack count={s.count} />
+        <g key={i} transform={`translate(${s.pos.x - LAND_R * 0.5} ${s.pos.y - LAND_R * 0.5})`}>
+          {Array.from({ length: s.count }, (_, k) => (
+            <g key={k} transform={`translate(0 ${k * 18})`}><CoinStack /></g>
+          ))}
         </g>
       ))}
     </motion.g>
