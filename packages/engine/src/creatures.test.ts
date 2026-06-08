@@ -149,4 +149,13 @@ describe('фигуры существ на доске', () => {
     expireBoardCreatures(G, '0'); // ход владельца — снимает
     expect(G.boardCreatures).toHaveLength(0);
   });
+
+  it('Хирон защищает остров от Гиганта/Гарпии', () => {
+    const G = withMarket(['giant', 'a', 'b']);
+    G.players['0'].gold = 9;
+    const enemy = G.territories['home_e'];
+    if (enemy.kind === 'island') { enemy.ownerId = '1'; enemy.buildings = [{ type: 'port', ownerId: '1' }]; }
+    placeBoardCreature(G, 'chiron', '1', 'home_e');
+    expect(applyBuyCreature(G, '0', 0, 'home_e')).toBe('остров под защитой Хирона');
+  });
 });

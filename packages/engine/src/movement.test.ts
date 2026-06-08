@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Ctx } from 'boardgame.io';
 import { setupGame } from './setup';
 import { startFleetMove, hopFleet, troopReachable, applyTroopMove, applyCombatRound, applyCombatRetreat } from './movement';
+import { placeBoardCreature } from './creatures';
 import { isSea, isIsland } from './board';
 import type { CycladesState, Sea } from './types';
 
@@ -123,6 +124,28 @@ describe('движение войск', () => {
     fightToEnd(G, '0');
     expect(enemy.ownerId).toBe('0');
     expect(enemy.troops).toBe(2);
+  });
+
+  it('Минотавр на острове даёт +2 к защите при штурме', () => {
+    const G = setupGame(ctxFor(2));
+    G.players['0'].gold = 5;
+    const home = G.territories['home_n'];
+    if (!isIsland(home)) throw new Error('home');
+    home.ownerId = '0'; home.troops = 3;
+    let target: string | null = null;
+    for (const sid of home.adjacentSeas) {
+      const s = G.territories[sid];
+      if (!isSea(s)) continue;
+      s.ownerId = '0'; s.fleets = 1;
+      const other = s.adjacentIslands.find((iid) => iid !== 'home_n');
+      if (other) { target = other; break; }
+    }
+    const enemy = G.territories[target!];
+    if (!isIsland(enemy)) throw new Error('enemy');
+    enemy.ownerId = '1'; enemy.troops = 1; enemy.buildings = [];
+    placeBoardCreature(G, 'minotaur', '1', target!); // фигура Минотавра на защищаемом острове
+    expect(applyTroopMove(G, '0', 'home_n', target!, 2)).toBeNull();
+    expect(G.combat!.defenderBonus).toBe(2); // крепостей нет, но Минотавр даёт +2
   });
 });
 

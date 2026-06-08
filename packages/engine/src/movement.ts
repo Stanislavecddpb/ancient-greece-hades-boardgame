@@ -3,6 +3,7 @@ import { isSea, isIsland } from './board';
 import { oneRound, type DieRoll } from './combat';
 import { log } from './helpers';
 import { checkMetropolis } from './metropolis';
+import { boardCreatureAt } from './creatures';
 
 export const FLEET_RANGE = 3;
 
@@ -207,11 +208,13 @@ export function applyTroopMove(
 
   // Начинаем сухопутный бой: войска «в пути», управляются через G.combat.
   const defenderId = to.ownerId!;
+  // Минотавр на острове добавляет +2 к защите (считается за 2 войска).
+  const minotaurBonus = boardCreatureAt(G, toIslandId)?.kind === 'minotaur' ? 2 : 0;
   G.combat = {
     kind: 'land', location: toIslandId, fromId: fromIslandId,
     attackerId: pid, defenderId,
     attackerUnits: count, defenderUnits: to.troops,
-    defenderBonus: to.buildings.filter((b) => b.type === 'fortress').length,
+    defenderBonus: to.buildings.filter((b) => b.type === 'fortress').length + minotaurBonus,
     round: 0, lastRoll: null,
   };
   log(G, `${G.players[pid].name} штурмует ${to.name} (${count} против ${to.troops}).`);

@@ -376,6 +376,12 @@ export function applyBuyCreature(
   const targetErr = validateTarget(G, pid, def, targetId);
   if (targetErr) return targetErr;
 
+  // Хирон защищает остров от Пегаса, Гиганта и Гарпии.
+  if (targetId && (def.id === 'giant' || def.id === 'harpy' || def.id === 'pegasus')) {
+    const fig = G.boardCreatures.find((c) => c.location === targetId);
+    if (fig && fig.kind === 'chiron') return 'остров под защитой Хирона';
+  }
+
   // «Фигурные» существа ставятся на доску; обычные — мгновенный эффект.
   if (!def.placed) {
     const applyErr = def.apply(G, pid, targetId);
