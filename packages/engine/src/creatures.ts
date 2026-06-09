@@ -470,14 +470,8 @@ export function applyChimeraReplay(
   }
 
   // Фигурное существо — ставим фигуру (игрок выбирает клетку); иначе мгновенный эффект.
+  // Две фигуры на одной клетке уничтожают друг друга (общее правило placeBoardCreature).
   if (def.placed) {
-    // Химера: если на клетке уже стоит фигура — она снимается, и игрок ставит свою.
-    const existing = G.boardCreatures.findIndex((c) => c.location === targetId);
-    if (existing >= 0) {
-      const old = G.boardCreatures[existing];
-      G.boardCreatures.splice(existing, 1);
-      log(G, `Химера убирает фигуру (${CREATURES[old.kind]?.name ?? old.kind}) с клетки.`);
-    }
     placeCreatureFigure(G, pid, def.id, targetId!);
   } else {
     const applyErr = def.apply(G, pid, targetId);

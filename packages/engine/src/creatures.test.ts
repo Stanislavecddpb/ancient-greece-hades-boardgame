@@ -347,16 +347,14 @@ describe('Химера', () => {
     expect(G.creatures.discard).toHaveLength(0);
   });
 
-  it('фигура Химеры на занятой клетке снимает старую фигуру и ставит свою', () => {
+  it('фигура Химеры на занятой клетке уничтожает обе фигуры (общее правило)', () => {
     const G = withMarket(['chimera', 'a', 'b']);
     G.players['0'].gold = 9;
     placeBoardCreature(G, 'minotaur', '1', 'home_n'); // чужая фигура
     G.creatures.discard = ['medusa'];
     applyBuyCreature(G, '0', 0);
     expect(applyChimeraReplay(G, '0', 'medusa', 'home_n')).toBeNull();
-    const figs = G.boardCreatures.filter((c) => c.location === 'home_n');
-    expect(figs).toHaveLength(1);
-    expect(figs[0]).toMatchObject({ kind: 'medusa', ownerId: '0' });
+    expect(G.boardCreatures.filter((c) => c.location === 'home_n')).toHaveLength(0); // обе уничтожены
   });
 
   it('endChimera перетасовывает сброс без розыгрыша', () => {
