@@ -23,7 +23,7 @@ import {
   endCycle,
 } from './actions';
 import { metropolisCount, islandsOf, log } from './helpers';
-import { applyBuildMetropolis } from './metropolis';
+import { applyPlaceMetropolis } from './metropolis';
 import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits, applyChimeraReplay, endChimera, applySatyrSteal, endSatyr, applyCyclopsReplace, endCyclops } from './creatures';
 import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus, applyPegasusMove, endPegasus } from './movement';
 import { dieFromRandom } from './combat';
@@ -137,11 +137,9 @@ export const CycladesGame: Game<CycladesState> = {
           if (err) return INVALID_MOVE;
         },
 
-        // Постройка Метрополии (4 разных здания или 4 философа) на острове с местом.
-        buildMetropolis: ({ G, playerID }, islandId: TerritoryId) => {
-          const turn = currentTurn(G);
-          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID) return INVALID_MOVE;
-          if (applyBuildMetropolis(G, playerID!, islandId)) return INVALID_MOVE;
+        // Установка Метрополии на выбранный остров (после авто-триггера: 4 философа / 4 здания).
+        placeMetropolis: ({ G, playerID }, islandId: TerritoryId) => {
+          if (applyPlaceMetropolis(G, playerID!, islandId)) return INVALID_MOVE;
         },
 
         // Посейдон: начать приказ флоту (1🪙 на первом переходе).
@@ -264,7 +262,7 @@ export const CycladesGame: Game<CycladesState> = {
 
         endGod: ({ G, ctx, playerID, events }) => {
           const turn = currentTurn(G);
-          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID) return INVALID_MOVE;
+          if (G.combat || G.fleetMove || G.metropolisPlace || !turn || turn.playerId !== playerID) return INVALID_MOVE;
           const done = advanceTurn(G);
           if (done) {
             endCycle(G, ctx);

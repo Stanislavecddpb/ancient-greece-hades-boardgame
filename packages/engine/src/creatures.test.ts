@@ -65,15 +65,15 @@ describe('цена по позиции', () => {
     expect(creaturePriceAt(G, '0', 2)).toBe(2);
   });
 
-  it('храм снижает цену позиции (минимум 1)', () => {
+  it('храмы дают скидку максимум 1, сколько бы их ни было (минимум цена 1)', () => {
     const G = withMarket(['kraken', 'dryad', 'fates']);
     const isl = G.territories['home_n'];
     if (isl.kind === 'island') {
       isl.buildings.push({ type: 'temple', ownerId: '0' });
       isl.buildings.push({ type: 'temple', ownerId: '0' });
     }
-    expect(creaturePriceAt(G, '0', 0)).toBe(2); // 4 − 2 храма
-    expect(creaturePriceAt(G, '0', 2)).toBe(1); // 2 − 2 = 0 → минимум 1
+    expect(creaturePriceAt(G, '0', 0)).toBe(3); // 4 − 1 (скидка максимум 1)
+    expect(creaturePriceAt(G, '0', 2)).toBe(1); // 2 − 1 = 1
   });
 });
 

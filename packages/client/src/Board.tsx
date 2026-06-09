@@ -18,7 +18,6 @@ import {
   recruitCost,
   freeSlots,
   metropolisSlotCost,
-  canBuildMetropolis,
   canPlaceFleet,
   troopReachable,
   isIsland,
@@ -155,6 +154,8 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
         {intro && <GameIntro G={G} order={order} nameOf={nameOf} onDone={() => setIntro(false)} />}
         {G.combat ? (
           <CombatPanel G={G} me={me} moves={moves} />
+        ) : G.metropolisPlace && G.metropolisPlace.playerId === me ? (
+          <MetropolisPanel G={G} me={me} moves={moves} selected={selected} />
         ) : G.fleetMove && G.fleetMove.playerId === me ? (
           <FleetMovePanel G={G} moves={moves} take={fleetTake} setTake={setFleetTake} />
         ) : G.polyphemusPush && G.polyphemusPush.playerId === me ? (
@@ -244,10 +245,6 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
   const fleetSource = !!sel && isSea(sel) && sel.ownerId === pid && sel.fleets > 0 && god === 'poseidon';
   const canStartFleet = fleetSource && G.players[pid].gold >= 1;
   const troopMax = troopSource ? Math.min(3, (sel as any).troops) : 3;
-  // Постройка Метрополии: есть ресурс и выбранный свой остров с местом.
-  const metroReady = canBuildMetropolis(G, pid);
-  const canMetroHere =
-    !!sel && isIsland(sel) && sel.ownerId === pid && !sel.hasMetropolis && freeSlots(sel) >= metropolisSlotCost(sel);
 
   return (
     <div className="action-bar">
@@ -273,12 +270,6 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
                 onChange={(e) => setTroopCount(Math.max(1, Math.min(3, Number(e.target.value))))} style={{ width: 40 }} />
               <span className="sel-hint">{hasMove ? '→ стрелка на карте (1🪙)' : 'нет ходов'}</span>
             </span>
-          )}
-          {metroReady && (
-            <button disabled={!canMetroHere} onClick={() => moves.buildMetropolis(selected)}
-              title="4 разных здания или 4 философа → Метрополия на острове с местом">
-              🏛️ Метрополия
-            </button>
           )}
           {fleetSource && (
             <button disabled={!canStartFleet} onClick={() => moves.startFleetMove(selected)}
@@ -684,6 +675,28 @@ function CyclopsPanel({ G, moves }: { G: CycladesState; moves: any }) {
           </>
         )}
         <button className="end-turn" onClick={() => moves.endCyclops()}>Отмена</button>
+      </div>
+    </div>
+  );
+}
+
+/** Установка Метрополии: выбрать свой остров (при нехватке места снесутся здания). */
+function MetropolisPanel({ G, me, moves, selected }: {
+  G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null;
+}) {
+  const sel = selected ? G.territories[selected] : null;
+  const ok = !!sel && isIsland(sel) && sel.ownerId === me && !sel.hasMetropolis;
+  const willDestroy = ok && isIsland(sel) && freeSlots(sel) < metropolisSlotCost(sel);
+  const src = G.metropolisPlace!.source === 'philosophers' ? '4 философа' : '4 разных здания';
+  return (
+    <div className="action-bar prosperity">
+      <div className="ab-title">🏛️ Метрополия ({src}): выберите свой остров для установки</div>
+      <div className="ab-controls">
+        <span className="sel-hint">
+          {sel ? sel.name : 'кликните свой остров на карте'}
+          {willDestroy ? ' — не хватает места, лишние здания будут снесены' : ''}
+        </span>
+        <button disabled={!ok} onClick={() => moves.placeMetropolis(selected)}>🏛️ Возвести Метрополию</button>
       </div>
     </div>
   );

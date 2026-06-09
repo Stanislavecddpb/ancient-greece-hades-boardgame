@@ -228,10 +228,14 @@ export function templeCount(G: CycladesState, pid: PlayerID): number {
   return n;
 }
 
-/** Цена существа в слоте index (по позиции) с учётом храмов (минимум 1). */
+/**
+ * Цена существа в слоте index (по позиции) с учётом храмов. Любое число храмов
+ * даёт скидку максимум 1 золото (минимум цена — 1).
+ */
 export function creaturePriceAt(G: CycladesState, pid: PlayerID, index: number): number {
   const base = CREATURE_SLOT_PRICES[index] ?? CREATURE_SLOT_PRICES[CREATURE_SLOT_PRICES.length - 1];
-  return Math.max(1, base - templeCount(G, pid));
+  const discount = templeCount(G, pid) > 0 ? 1 : 0;
+  return Math.max(1, base - discount);
 }
 
 /** Берёт верхнюю карту колоды (перекидывая сброс в колоду при пустой). */

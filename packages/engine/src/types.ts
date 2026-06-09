@@ -227,6 +227,13 @@ export interface CyclopsSwapState {
   islandId: TerritoryId;
 }
 
+/** Игрок обязан немедленно разместить Метрополию (набрал 4 философа или 4 разных здания). */
+export interface MetropolisPlaceState {
+  playerId: PlayerID;
+  /** Откуда: 4 философа или 4 разных здания (ресурс уже списан). */
+  source: 'philosophers' | 'buildings';
+}
+
 /** Рынок мифических существ: колода, открытые карты, сброс. */
 export interface CreatureMarket {
   /** Колода рубашкой вверх (берём с начала). */
@@ -279,6 +286,8 @@ export interface CycladesState {
   satyrSteal: PlayerID | null;
   /** Замена здания Циклопом (выбран остров, идёт выбор типа) или null. */
   cyclopsSwap: CyclopsSwapState | null;
+  /** Игрок обязан разместить Метрополию (сработал триггер 4 философа / 4 здания) или null. */
+  metropolisPlace: MetropolisPlaceState | null;
   log: LogEntry[];
 }
 
