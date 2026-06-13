@@ -6,6 +6,7 @@ import {
   PLAYER_COLORS,
   STARTING_GOLD,
   UNIT_SUPPLY,
+  UNDEAD_SUPPLY,
 } from './types';
 import { createBoard, islandAtCell, seaAtCell } from './board';
 import { createCreatureMarket } from './creatures';
@@ -62,6 +63,8 @@ export function setupGame(ctx: Ctx, random?: RandomAPI): CycladesState {
       philosophers: 0,
       troopsSupply: UNIT_SUPPLY - troopsPlaced,
       fleetsSupply: UNIT_SUPPLY - fleetsPlaced,
+      undeadTroopsSupply: UNDEAD_SUPPLY,
+      undeadFleetsSupply: UNDEAD_SUPPLY,
       isEliminated: false,
     };
   });
@@ -87,6 +90,8 @@ export function setupGame(ctx: Ctx, random?: RandomAPI): CycladesState {
     satyrSteal: null,
     cyclopsSwap: null,
     metropolisPlace: null,
+    modules: { hades: true },
+    hades: { column: 0, active: false },
     log: [{ cycle: 1, text: 'Партия началась. Боги ждут подношений.' }],
   };
 }

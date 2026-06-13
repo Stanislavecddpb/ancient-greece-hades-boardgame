@@ -77,8 +77,14 @@ export interface Island {
   ownerId: PlayerID | null;
   /** Войска владельца, стоящие на острове. */
   troops: number;
+  /** Войска Нежити (Аид) на острове. Не дают золота Некрополю при гибели. */
+  undeadTroops: number;
   buildings: Building[];
   hasMetropolis: boolean;
+  /** На этом острове построен Некрополь (Модуль 2). */
+  necropolis: boolean;
+  /** Золото, накопленное на Некрополе этого острова (забирается в фазе дохода). */
+  necropolisGold: number;
 }
 
 /** Морская клетка (один кружок сетки): держит флот. */
@@ -96,6 +102,8 @@ export interface Sea {
   // --- динамика ---
   ownerId: PlayerID | null;
   fleets: number;
+  /** Флотилии Нежити (Аид) в зоне. */
+  undeadFleets: number;
 }
 
 export type Territory = Island | Sea;
@@ -113,6 +121,10 @@ export interface PlayerData {
   troopsSupply: number;
   /** Остаток фигурок флота в запасе. */
   fleetsSupply: number;
+  /** Остаток фигурок Войск Нежити в запасе (Аид; сбрасывается каждый цикл). */
+  undeadTroopsSupply: number;
+  /** Остаток фигурок Флотилий Нежити в запасе (Аид; сбрасывается каждый цикл). */
+  undeadFleetsSupply: number;
   isEliminated: boolean;
 }
 
@@ -123,6 +135,8 @@ export interface GodSlot {
   occupantId: PlayerID | null;
   /** Текущая ставка золотом (для Аполлона всегда 0). */
   bid: number;
+  /** Тайл этого бога накрыт Аидом: победитель получает действия Аида (Модуль 2). */
+  isHades?: boolean;
 }
 
 /** Состояние фазы аукциона. */
@@ -139,6 +153,8 @@ export interface AuctionState {
 export interface ActionTurn {
   god: GodName;
   playerId: PlayerID;
+  /** Этот пункт очереди — активация Аида (вместо обычного бога). */
+  isHades?: boolean;
 }
 
 /** Состояние фазы действий. */
@@ -249,6 +265,20 @@ export interface LogEntry {
   text: string;
 }
 
+/** Какие модули дополнения «Аид» включены в этой партии. */
+export interface ModuleFlags {
+  /** Модуль 2: Аид и его Нежить (трек угрозы, Нежить, Некрополь). */
+  hades: boolean;
+}
+
+/** Трек угрозы Аида (Модуль 2): колонна 0..9, при достижении 9 Аид входит в игру. */
+export interface HadesTrack {
+  /** Позиция колонны на тайле Угрозы (0..9). */
+  column: number;
+  /** Аид активен в текущем цикле (накрыл бога над Аполлоном). */
+  active: boolean;
+}
+
 /** Полное состояние игры (объект G в boardgame.io). */
 export interface CycladesState {
   players: Record<PlayerID, PlayerData>;
@@ -288,6 +318,10 @@ export interface CycladesState {
   cyclopsSwap: CyclopsSwapState | null;
   /** Игрок обязан разместить Метрополию (сработал триггер 4 философа / 4 здания) или null. */
   metropolisPlace: MetropolisPlaceState | null;
+  /** Включённые модули дополнения «Аид». */
+  modules: ModuleFlags;
+  /** Трек угрозы Аида (Модуль 2). */
+  hades: HadesTrack;
   log: LogEntry[];
 }
 
@@ -316,3 +350,20 @@ export const STARTING_GOLD = 5;
 
 /** Цвета игроков по индексу посадки: красный, чёрный, синий, жёлтый. */
 export const PLAYER_COLORS = ['#d64545', '#3b414b', '#3b7dd8', '#e0b341'];
+
+// --- Константы Модуля 2 (Аид) ---
+
+/** Деление трека Угрозы, при достижении/прохождении которого Аид входит в игру. */
+export const HADES_THRESHOLD = 9;
+
+/** Запас фигурок Нежити каждого типа (войска / флот) — сбрасывается каждый цикл. */
+export const UNDEAD_SUPPLY = 5;
+
+/**
+ * Стоимость n-й Нежити за активацию Аида (0-индекс): 1-я бесплатно, далее 1/2/3/4🪙.
+ * Всего за активацию можно нанять до 5 Нежити (1 бесплатная + 4 покупных).
+ */
+export const UNDEAD_RECRUIT_COSTS = [0, 1, 2, 3, 4];
+
+/** Максимум Нежити за одну активацию Аида. */
+export const MAX_UNDEAD_PER_TURN = 5;

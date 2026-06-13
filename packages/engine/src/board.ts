@@ -112,8 +112,11 @@ export function createBoard(): Record<TerritoryId, Territory> {
       adjacentSeas: [],
       ownerId: null,
       troops: 0,
+      undeadTroops: 0,
       buildings: [],
       hasMetropolis: false,
+      necropolis: false,
+      necropolisGold: 0,
     };
     territories[def.id] = island;
   }
@@ -133,6 +136,7 @@ export function createBoard(): Record<TerritoryId, Territory> {
       adjacentIslands: [],
       ownerId: null,
       fleets: 0,
+      undeadFleets: 0,
     };
     territories[sea.id] = sea;
   }
