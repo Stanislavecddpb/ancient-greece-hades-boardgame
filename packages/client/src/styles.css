@@ -293,3 +293,5 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 .ht-cell.end { border-color: #b85a5a; color: #e6a3a3; }
 .ht-cell.on { background: #9a6cd0; color: #110a1c; font-weight: 800; box-shadow: 0 0 8px #9a6cd0aa; }
 .ht-active { font-size: 0.7rem; font-weight: 800; color: #d7a3ff; }
+
+.action-bar.combat button.loss-order { background: #4a3a6a; font-size: 0.74rem; }

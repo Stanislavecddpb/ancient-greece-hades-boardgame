@@ -184,6 +184,16 @@ export interface CombatState {
   defenderId: PlayerID;
   attackerUnits: number;
   defenderUnits: number;
+  /** Сколько из attackerUnits — Нежить (Аид). Остальные — обычные юниты. */
+  attackerUndead?: number;
+  /** Сколько из defenderUnits — Нежить (Аид). */
+  defenderUndead?: number;
+  /**
+   * Порядок потерь атакующего, действующего Аидом: true — сначала гибнет Нежить
+   * (по умолчанию), false — сначала обычные юниты. Защитник всегда теряет обычных
+   * первыми. На Некрополь идёт золото только за обычные (не Нежить) потери.
+   */
+  loseUndeadFirst?: boolean;
   /** Бонус защитника (крепость/порт). */
   defenderBonus: number;
   round: number;

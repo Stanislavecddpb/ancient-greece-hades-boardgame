@@ -3,6 +3,7 @@ import {
   type CycladesState,
   type PlayerData,
   type PlayerID,
+  type ModuleFlags,
   PLAYER_COLORS,
   STARTING_GOLD,
   UNIT_SUPPLY,
@@ -28,7 +29,7 @@ const PLACEMENTS: Placement[] = [
 ];
 
 /** Строит начальное состояние партии под число игроков из ctx. */
-export function setupGame(ctx: Ctx, random?: RandomAPI): CycladesState {
+export function setupGame(ctx: Ctx, random?: RandomAPI, modules?: Partial<ModuleFlags>): CycladesState {
   const territories = createBoard();
   const players: Record<PlayerID, PlayerData> = {};
 
@@ -90,7 +91,7 @@ export function setupGame(ctx: Ctx, random?: RandomAPI): CycladesState {
     satyrSteal: null,
     cyclopsSwap: null,
     metropolisPlace: null,
-    modules: { hades: true },
+    modules: { hades: true, ...modules },
     hades: { column: 0, active: false },
     log: [{ cycle: 1, text: 'Партия началась. Боги ждут подношений.' }],
   };

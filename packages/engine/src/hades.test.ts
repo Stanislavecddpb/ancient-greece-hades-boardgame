@@ -10,9 +10,14 @@ import {
   undeadCost,
 } from './hades';
 import { addNecropolisGold, collectNecropolisGold, necropolisIsland } from './income';
-import { applyCombatRound } from './movement';
+import {
+  applyCombatRound,
+  applyHadesTroopMove,
+  applySetLossOrder,
+  hadesTroopReachable,
+} from './movement';
 import { isIsland, isSea } from './board';
-import type { CycladesState, Island, Sea } from './types';
+import type { CycladesState, CombatState, Island, Sea } from './types';
 
 function ctxFor(n: number): Ctx {
   return {
@@ -199,6 +204,118 @@ describe('золото Некрополя', () => {
     let i = 0;
     applyCombatRound(G, '0', () => rolls[i++]);
     expect(necro.necropolisGold).toBe(1);
+  });
+});
+
+/** Находит свой остров, соседнюю с ним морскую зону и другой остров у неё (мост). */
+function findBridge(G: CycladesState, pid: string): { from: Island; bridge: Sea; to: Island } {
+  for (const isl of Object.values(G.territories)) {
+    if (!isIsland(isl) || isl.ownerId !== pid) continue;
+    for (const sid of isl.adjacentSeas) {
+      const bridge = G.territories[sid];
+      if (!isSea(bridge)) continue;
+      for (const iid of bridge.adjacentIslands) {
+        if (iid !== isl.id) return { from: isl, bridge, to: G.territories[iid] as Island };
+      }
+    }
+  }
+  throw new Error('мост не найден');
+}
+
+/** Заготовка наземного боя с заданным составом (для проверки порядка потерь). */
+function landCombat(
+  G: CycladesState, opts: Partial<CombatState> & { location: string },
+): void {
+  G.combat = {
+    kind: 'land', fromId: opts.fromId ?? opts.location,
+    attackerId: '0', defenderId: '1',
+    attackerUnits: 1, defenderUnits: 1, defenderBonus: 0,
+    round: 0, lastRoll: null, ...opts,
+  };
+}
+
+describe('перемещение Аида', () => {
+  it('требует хотя бы одну Нежить в перемещении', () => {
+    const G = hadesTurn();
+    const { from, bridge, to } = findBridge(G, '0');
+    bridge.ownerId = '0'; bridge.fleets = 1;
+    from.troops = 2; G.players['0'].gold = 5;
+    expect(applyHadesTroopMove(G, '0', from.id, to.id, 1, 0)).toBe('в перемещении Аида нужна хотя бы 1 Нежить');
+  });
+
+  it('двигает Нежить на свой/пустой остров по мосту из флота', () => {
+    const G = hadesTurn();
+    const { from, bridge, to } = findBridge(G, '0');
+    bridge.ownerId = '0'; bridge.fleets = 1;
+    from.undeadTroops = 2; from.troops = 1;
+    to.ownerId = null; to.troops = 0; to.undeadTroops = 0;
+    G.players['0'].gold = 5;
+
+    expect(hadesTroopReachable(G, from.id, '0').has(to.id)).toBe(true);
+    expect(applyHadesTroopMove(G, '0', from.id, to.id, 1, 1)).toBeNull();
+    expect(to.undeadTroops).toBe(1);
+    expect(to.troops).toBe(1);
+    expect(to.ownerId).toBe('0');
+    expect(G.players['0'].gold).toBe(4); // -1🪙 за перемещение
+  });
+});
+
+describe('бой с участием Нежити', () => {
+  it('по умолчанию первой гибнет Нежить — Некрополь не растёт', () => {
+    const G = setupGame(ctxFor(2));
+    const necro = ownIsland(G, '0');
+    necro.necropolis = true;
+    const loc = Object.values(G.territories).find((t): t is Island => isIsland(t) && t.id !== necro.id)!;
+    loc.ownerId = '1'; loc.troops = 1;
+    landCombat(G, { location: loc.id, attackerUnits: 1, attackerUndead: 1, defenderUnits: 1, loseUndeadFirst: true });
+
+    // Атакующий проигрывает раунд (d > a): теряет Нежить, обычных смертей нет.
+    const seq = [0, 3]; let i = 0;
+    applyCombatRound(G, '0', () => seq[i++]);
+    expect(necro.necropolisGold).toBe(0);
+    expect(G.combat).toBeNull(); // атакующий стёрт — бой окончен
+  });
+
+  it('обычные потери в бою идут на Некрополь, Нежить можно сохранить (порядок потерь)', () => {
+    const G = setupGame(ctxFor(2));
+    const necro = ownIsland(G, '0');
+    necro.necropolis = true;
+    const loc = Object.values(G.territories).find((t): t is Island => isIsland(t) && t.id !== necro.id)!;
+    loc.ownerId = '1'; loc.troops = 1;
+    landCombat(G, {
+      location: loc.id, attackerUnits: 2, attackerUndead: 1,
+      defenderUnits: 1, defenderBonus: 3, loseUndeadFirst: false,
+    });
+
+    // d = 0+1+3 = 4 > a = 0+2 → атакующий теряет ОБЫЧНОГО (порядок: живые первыми).
+    const seq = [0, 0]; let i = 0;
+    applyCombatRound(G, '0', () => seq[i++]);
+    expect(necro.necropolisGold).toBe(1);
+    expect(G.combat!.attackerUndead).toBe(1); // Нежить уцелела
+    expect(G.combat!.attackerUnits).toBe(1);
+  });
+
+  it('захват острова Аидом размещает на нём и Нежить, и живых', () => {
+    const G = setupGame(ctxFor(2));
+    const loc = Object.values(G.territories).find((t): t is Island => isIsland(t) && t.ownerId === '1')!;
+    loc.troops = 1;
+    landCombat(G, { location: loc.id, attackerUnits: 2, attackerUndead: 1, defenderUnits: 1 });
+
+    // a = 3+2 = 5 > d = 0+1 → защитник гибнет, атакующий захватывает.
+    const seq = [3, 0]; let i = 0;
+    applyCombatRound(G, '0', () => seq[i++]);
+    expect(loc.ownerId).toBe('0');
+    expect(loc.troops).toBe(1);
+    expect(loc.undeadTroops).toBe(1);
+    expect(G.combat).toBeNull();
+  });
+
+  it('setLossOrder переключает порядок потерь только у атакующего', () => {
+    const G = setupGame(ctxFor(2));
+    landCombat(G, { location: ownIsland(G, '0').id, attackerUnits: 2, attackerUndead: 1 });
+    expect(applySetLossOrder(G, '0', false)).toBeNull();
+    expect(G.combat!.loseUndeadFirst).toBe(false);
+    expect(applySetLossOrder(G, '1', true)).toBe('не ваш бой');
   });
 });
 

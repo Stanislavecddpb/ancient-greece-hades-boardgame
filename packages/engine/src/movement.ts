@@ -372,28 +372,35 @@ function finishCombat(G: CycladesState, result: 'attacker' | 'defender' | 'retre
   const c = G.combat;
   if (!c) return;
   const loc = G.territories[c.location];
+  const atkUndead = c.attackerUndead ?? 0;
+  const atkLiving = c.attackerUnits - atkUndead;
+  const defUndead = c.defenderUndead ?? 0;
+  const defLiving = c.defenderUnits - defUndead;
 
   if (c.kind === 'naval' && isSea(loc)) {
     if (result === 'attacker') {
-      loc.fleets = c.attackerUnits;
+      loc.fleets = atkLiving;
+      loc.undeadFleets = atkUndead;
       loc.ownerId = c.attackerId;
     } else {
-      loc.fleets = c.defenderUnits;
-      loc.ownerId = loc.fleets > 0 ? c.defenderId : null;
+      loc.fleets = defLiving;
+      loc.undeadFleets = defUndead;
+      loc.ownerId = (defLiving + defUndead) > 0 ? c.defenderId : null;
       if (result === 'retreat') {
         const src = G.territories[c.fromId];
-        if (src && isSea(src)) { src.fleets += c.attackerUnits; src.ownerId = c.attackerId; }
+        if (src && isSea(src)) { src.fleets += atkLiving; src.undeadFleets += atkUndead; src.ownerId = c.attackerId; }
       }
     }
   } else if (c.kind === 'land' && isIsland(loc)) {
     if (result === 'attacker') {
-      captureIsland(G, loc, c.attackerId, c.attackerUnits);
+      captureIsland(G, loc, c.attackerId, atkLiving, atkUndead);
       checkMetropolis(G, c.attackerId);
     } else {
-      loc.troops = c.defenderUnits; // защитник удерживает остров (контроль остаётся за ним)
+      loc.troops = defLiving; // защитник удерживает остров (контроль остаётся за ним)
+      loc.undeadTroops = defUndead;
       if (result === 'retreat') {
         const src = G.territories[c.fromId];
-        if (src && isIsland(src)) src.troops += c.attackerUnits;
+        if (src && isIsland(src)) { src.troops += atkLiving; src.undeadTroops += atkUndead; }
       }
     }
   }
@@ -408,14 +415,31 @@ export function applyCombatRound(G: CycladesState, pid: PlayerID, roll: DieRoll)
   const beforeAtk = c.attackerUnits;
   const beforeDef = c.defenderUnits;
   oneRound(c, roll);
-  // Каждое погибшее обычное (не Нежить) Войско/Флотилию кладёт 1🪙 на Некрополь.
-  // Бой с участием Нежити пока не реализован, поэтому все потери — обычные юниты.
-  const deaths = (beforeAtk - c.attackerUnits) + (beforeDef - c.defenderUnits);
-  if (deaths > 0) addNecropolisGold(G, deaths);
-  // Синхронизируем видимые юниты защитника на клетке.
+  // Распределяем потерю раунда между обычными юнитами и Нежитью. На Некрополь
+  // идёт 1🪙 за каждую гибель ОБЫЧНОГО (не Нежить) Войска/Флотилии.
+  let livingDeaths = 0;
+  if (beforeAtk - c.attackerUnits === 1) {
+    // Атакующий (Аид) выбирает порядок потерь: по умолчанию первой гибнет Нежить.
+    const au = c.attackerUndead ?? 0;
+    const livingBefore = beforeAtk - au;
+    const loseUndead = au > 0 && ((c.loseUndeadFirst ?? true) || livingBefore === 0);
+    if (loseUndead) c.attackerUndead = au - 1;
+    else livingDeaths += 1;
+  }
+  if (beforeDef - c.defenderUnits === 1) {
+    // Защитник теряет обычных первыми, Нежить — последней.
+    const du = c.defenderUndead ?? 0;
+    const livingBefore = beforeDef - du;
+    const loseUndead = du > 0 && livingBefore === 0;
+    if (loseUndead) c.defenderUndead = du - 1;
+    else livingDeaths += 1;
+  }
+  if (livingDeaths > 0) addNecropolisGold(G, livingDeaths);
+  // Синхронизируем видимые юниты защитника на клетке (обычные + Нежить).
   const loc = G.territories[c.location];
-  if (c.kind === 'naval' && isSea(loc)) loc.fleets = c.defenderUnits;
-  if (c.kind === 'land' && isIsland(loc)) loc.troops = c.defenderUnits;
+  const defUndeadNow = c.defenderUndead ?? 0;
+  if (c.kind === 'naval' && isSea(loc)) { loc.fleets = c.defenderUnits - defUndeadNow; loc.undeadFleets = defUndeadNow; }
+  if (c.kind === 'land' && isIsland(loc)) { loc.troops = c.defenderUnits - defUndeadNow; loc.undeadTroops = defUndeadNow; }
 
   const locName = loc?.name ?? '?';
   if (c.defenderUnits <= 0 && c.attackerUnits > 0) {
@@ -439,9 +463,175 @@ export function applyCombatRetreat(G: CycladesState, pid: PlayerID): string | nu
   return null;
 }
 
-/** Передаёт остров новому владельцу со зданиями и метрополией. */
-function captureIsland(G: CycladesState, island: Island, pid: PlayerID, troops: number): void {
+/** Передаёт остров новому владельцу со зданиями и метрополией (+ опц. Нежить). */
+function captureIsland(G: CycladesState, island: Island, pid: PlayerID, troops: number, undead = 0): void {
   island.ownerId = pid;
   island.troops = troops;
+  island.undeadTroops = undead;
   for (const b of island.buildings) b.ownerId = pid;
+}
+
+// --- Перемещение Аида (Модуль 2): Нежить (+ опц. живые) по правилам Ареса/Посейдона ---
+
+/** Острова, достижимые отрядом с fromIsland по «мосту» из своих флотов (живых или Нежити). */
+export function hadesTroopReachable(G: CycladesState, fromIslandId: TerritoryId, pid: PlayerID): Set<TerritoryId> {
+  const from = G.territories[fromIslandId];
+  const result = new Set<TerritoryId>();
+  if (!from || !isIsland(from) || from.ownerId !== pid) return result;
+  if (from.troops + from.undeadTroops <= 0) return result;
+  if (medusaLocks(G, fromIslandId)) return result;
+
+  const bridgeVisited = new Set<TerritoryId>();
+  const queue: TerritoryId[] = [];
+  const isOwnBridge = (id: TerritoryId) => {
+    const s = G.territories[id];
+    return !!s && isSea(s) && s.ownerId === pid && (s.fleets > 0 || s.undeadFleets > 0);
+  };
+  for (const sid of from.adjacentSeas) if (isOwnBridge(sid)) { queue.push(sid); bridgeVisited.add(sid); }
+  while (queue.length) {
+    const sid = queue.shift()!;
+    const sea = G.territories[sid];
+    if (!sea || !isSea(sea)) continue;
+    for (const iid of sea.adjacentIslands) if (iid !== fromIslandId) result.add(iid);
+    for (const nb of sea.adjacentSeas) {
+      if (!bridgeVisited.has(nb) && isOwnBridge(nb)) { bridgeVisited.add(nb); queue.push(nb); }
+    }
+  }
+  return result;
+}
+
+/** Морские зоны (до 3 шагов), куда Аид может повести флот (с учётом Нежити). */
+export function hadesFleetReachable(G: CycladesState, fromId: TerritoryId, pid: PlayerID): Set<TerritoryId> {
+  const origin = G.territories[fromId];
+  const result = new Set<TerritoryId>();
+  if (!origin || !isSea(origin) || origin.ownerId !== pid || origin.fleets + origin.undeadFleets <= 0) return result;
+
+  const visited = new Set<TerritoryId>([fromId]);
+  let frontier: Array<{ id: TerritoryId; d: number }> = [{ id: fromId, d: 0 }];
+  while (frontier.length) {
+    const next: typeof frontier = [];
+    for (const { id, d } of frontier) {
+      const sea = G.territories[id];
+      if (!sea || !isSea(sea) || d >= FLEET_RANGE) continue;
+      for (const nb of sea.adjacentSeas) {
+        const t = G.territories[nb];
+        if (!t || !isSea(t)) continue;
+        const enemy = (t.fleets > 0 || t.undeadFleets > 0) && t.ownerId !== pid;
+        if (enemy) { result.add(nb); continue; }
+        if (!visited.has(nb)) { visited.add(nb); result.add(nb); next.push({ id: nb, d: d + 1 }); }
+      }
+    }
+    frontier = next;
+  }
+  result.delete(fromId);
+  return result;
+}
+
+/**
+ * Перемещение отряда Аидом остров→остров: `undead` Нежити (обязательно ≥1) и
+ * `living` обычных войск по «мосту» из флотов (1🪙). На вражеском острове с
+ * защитниками начинается сухопутный бой. Возвращает текст ошибки или null.
+ */
+export function applyHadesTroopMove(
+  G: CycladesState, pid: PlayerID, fromId: TerritoryId, toId: TerritoryId, living: number, undead: number,
+): string | null {
+  if (G.combat) return 'идёт бой';
+  const from = G.territories[fromId];
+  const to = G.territories[toId];
+  if (!from || !isIsland(from) || from.ownerId !== pid) return 'нет своего острова';
+  if (medusaLocks(G, fromId)) return 'остров под Медузой: войска нельзя уводить';
+  if (!to || !isIsland(to)) return 'цель — не остров';
+  living = Math.max(0, Math.floor(living || 0));
+  undead = Math.max(0, Math.floor(undead || 0));
+  if (undead < 1) return 'в перемещении Аида нужна хотя бы 1 Нежить';
+  if (undead > from.undeadTroops) return 'столько Нежити нет';
+  if (living > from.troops) return 'столько войск нет';
+  const total = living + undead;
+  if (total > 3) return 'не больше 3 за перемещение';
+  if (!hadesTroopReachable(G, fromId, pid).has(toId)) return 'недостижимо';
+  if (G.players[pid].gold < 1) return 'нужна 1 монета';
+
+  G.players[pid].gold -= 1;
+  const enemy = to.ownerId != null && to.ownerId !== pid && (to.troops > 0 || to.undeadTroops > 0);
+  from.troops -= living;
+  from.undeadTroops -= undead;
+
+  if (!enemy) {
+    if (to.ownerId == null || to.ownerId === pid) {
+      to.troops += living; to.undeadTroops += undead; to.ownerId = pid;
+    } else {
+      captureIsland(G, to, pid, living, undead);
+    }
+    log(G, `${G.players[pid].name}: Аид двигает отряд (${living}⚔️+${undead}💀) → ${to.name}.`);
+    return null;
+  }
+
+  const minotaurBonus = boardCreatureAt(G, toId)?.kind === 'minotaur' ? 2 : 0;
+  const defUndead = to.undeadTroops;
+  G.combat = {
+    kind: 'land', location: toId, fromId,
+    attackerId: pid, defenderId: to.ownerId!,
+    attackerUnits: total, defenderUnits: to.troops + defUndead,
+    attackerUndead: undead, defenderUndead: defUndead, loseUndeadFirst: true,
+    defenderBonus: to.buildings.filter((b) => b.type === 'fortress').length + minotaurBonus,
+    round: 0, lastRoll: null,
+  };
+  log(G, `${G.players[pid].name}: Аид штурмует ${to.name} (${total} против ${to.troops + defUndead}).`);
+  return null;
+}
+
+/**
+ * Перемещение флота Аидом одной группой до 3 клеток: `undead` Флотилий Нежити
+ * (≥1) и `living` обычных кораблей (1🪙). Во вражеской зоне — морской бой.
+ */
+export function applyHadesFleetMove(
+  G: CycladesState, pid: PlayerID, fromId: TerritoryId, toId: TerritoryId, living: number, undead: number,
+): string | null {
+  if (G.combat) return 'идёт бой';
+  const from = G.territories[fromId];
+  const to = G.territories[toId];
+  if (!from || !isSea(from) || from.ownerId !== pid) return 'нет своей зоны';
+  if (!to || !isSea(to)) return 'цель — не море';
+  living = Math.max(0, Math.floor(living || 0));
+  undead = Math.max(0, Math.floor(undead || 0));
+  if (undead < 1) return 'в перемещении Аида нужна хотя бы 1 Нежить';
+  if (undead > from.undeadFleets) return 'столько Нежити нет';
+  if (living > from.fleets) return 'столько флота нет';
+  if (!hadesFleetReachable(G, fromId, pid).has(toId)) return 'недостижимо';
+  if (seaBlockedForFleet(G, toId)) return 'зона закрыта (Кракен/Полифем)';
+  if (G.players[pid].gold < 1) return 'нужна 1 монета';
+
+  G.players[pid].gold -= 1;
+  const total = living + undead;
+  const enemy = (to.fleets > 0 || to.undeadFleets > 0) && to.ownerId !== pid;
+  from.fleets -= living;
+  from.undeadFleets -= undead;
+  if (from.fleets === 0 && from.undeadFleets === 0) from.ownerId = null;
+
+  if (!enemy) {
+    to.fleets += living; to.undeadFleets += undead; to.ownerId = pid;
+    log(G, `${G.players[pid].name}: Аид ведёт флот (${living}⛵+${undead}☠) → ${to.name}.`);
+    return null;
+  }
+
+  const defUndead = to.undeadFleets;
+  G.combat = {
+    kind: 'naval', location: toId, fromId,
+    attackerId: pid, defenderId: to.ownerId!,
+    attackerUnits: total, defenderUnits: to.fleets + defUndead,
+    attackerUndead: undead, defenderUndead: defUndead, loseUndeadFirst: true,
+    defenderBonus: navalDefenseBonus(G, toId, to.ownerId!),
+    round: 0, lastRoll: null,
+  };
+  log(G, `${G.players[pid].name}: Аид атакует флот у ${to.name} (${total} против ${to.fleets + defUndead}).`);
+  return null;
+}
+
+/** Атакующий Аидом выбирает порядок потерь (true — первой гибнет Нежить). */
+export function applySetLossOrder(G: CycladesState, pid: PlayerID, loseUndeadFirst: boolean): string | null {
+  const c = G.combat;
+  if (!c) return 'нет боя';
+  if (c.attackerId !== pid) return 'не ваш бой';
+  c.loseUndeadFirst = !!loseUndeadFirst;
+  return null;
 }

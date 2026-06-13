@@ -24,6 +24,8 @@ import {
   isSea,
   undeadCost,
   MAX_UNDEAD_PER_TURN,
+  hadesTroopReachable,
+  hadesFleetReachable,
 } from '@cyclades/engine';
 import type { CreatureDef, Territory } from '@cyclades/engine';
 import { BoardMap } from './BoardMap';
@@ -67,6 +69,8 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
   const [selected, setSelected] = useState<TerritoryId | null>(null);
   const [troopCount, setTroopCount] = useState(1);
   const [fleetTake, setFleetTake] = useState(99);
+  const [hadesUndead, setHadesUndead] = useState(1);
+  const [hadesLiving, setHadesLiving] = useState(0);
   const [intro, setIntro] = useState(false);
 
   // Имя игрока: введённое при входе (matchData) → иначе из состояния.
@@ -139,7 +143,19 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
     const take = Math.min(Math.max(1, fleetTake), carrying);
     const targets = isSea(at) ? at.adjacentSeas.filter((id) => isSea(G.territories[id])) : [];
     movement = { from: G.fleetMove.at, targets, onMove: (to) => moves.hopFleet(to, take) };
-  } else if (canAct && me && !G.combat && sel && turn!.god === 'ares' && isIsland(sel) && sel.ownerId === me && sel.troops > 0) {
+  } else if (canAct && me && turn!.isHades && sel && isIsland(sel) && sel.ownerId === me && sel.undeadTroops > 0) {
+    // Аид: перемещение отряда (Нежить + опц. живые) остров→остров по мосту флотов.
+    const undead = Math.min(Math.max(1, hadesUndead), sel.undeadTroops);
+    const living = Math.min(Math.max(0, hadesLiving), sel.troops, Math.max(0, 3 - undead));
+    const targets = [...hadesTroopReachable(G, sel.id, me)];
+    if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.moveHadesTroops(sel.id, to, living, undead); setSelected(null); } };
+  } else if (canAct && me && turn!.isHades && sel && isSea(sel) && sel.ownerId === me && sel.undeadFleets > 0) {
+    // Аид: перемещение флота (Нежить + опц. живые) до 3 клеток.
+    const undead = Math.min(Math.max(1, hadesUndead), sel.undeadFleets);
+    const living = Math.min(Math.max(0, hadesLiving), sel.fleets);
+    const targets = [...hadesFleetReachable(G, sel.id, me)];
+    if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.moveHadesFleets(sel.id, to, living, undead); setSelected(null); } };
+  } else if (canAct && me && !turn!.isHades && !G.combat && sel && turn!.god === 'ares' && isIsland(sel) && sel.ownerId === me && sel.troops > 0) {
     const n = Math.min(troopCount, sel.troops, 3); // не больше 3 войск за перемещение
     const targets = [...troopReachable(G, sel.id, me)];
     if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.moveTroops(sel.id, to, n); setSelected(null); } };
@@ -184,7 +200,9 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
           )
         ) : ctx.phase === 'actions' ? (
           <ActionBar G={G} me={me} moves={moves} selected={selected}
-            troopCount={troopCount} setTroopCount={setTroopCount} hasMove={!!movement} />
+            troopCount={troopCount} setTroopCount={setTroopCount} hasMove={!!movement}
+            hadesLiving={hadesLiving} setHadesLiving={setHadesLiving}
+            hadesUndead={hadesUndead} setHadesUndead={setHadesUndead} />
         ) : null}
         <EventLog G={G} />
       </div>
@@ -226,16 +244,21 @@ function PlayersCorners({ G, ctx, activeId, me, nameOf }: {
   );
 }
 
-function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove }: {
+function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove,
+  hadesLiving, setHadesLiving, hadesUndead, setHadesUndead }: {
   G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null;
   troopCount: number; setTroopCount: (n: number) => void; hasMove: boolean;
+  hadesLiving: number; setHadesLiving: (n: number) => void;
+  hadesUndead: number; setHadesUndead: (n: number) => void;
 }) {
   const turn = currentTurn(G);
   if (!turn) return null;
   const myTurn = activePlayerId(G) === me;
   // Активация Аида: свой набор действий вместо обычного бога (Модуль 2).
   if (turn.isHades) {
-    return <HadesActionBar G={G} me={me} moves={moves} selected={selected} myTurn={myTurn} />;
+    return <HadesActionBar G={G} me={me} moves={moves} selected={selected} myTurn={myTurn}
+      hasMove={hasMove} hadesLiving={hadesLiving} setHadesLiving={setHadesLiving}
+      hadesUndead={hadesUndead} setHadesUndead={setHadesUndead} />;
   }
   const god = turn.god;
   const pid = turn.playerId;
@@ -292,9 +315,12 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
   );
 }
 
-/** Панель действий Аида (Модуль 2): наём Нежити, постройка Некрополя, существа. */
-function HadesActionBar({ G, me, moves, selected, myTurn }: {
+/** Панель действий Аида (Модуль 2): наём Нежити, Некрополь, перемещение, существа. */
+function HadesActionBar({ G, me, moves, selected, myTurn, hasMove,
+  hadesLiving, setHadesLiving, hadesUndead, setHadesUndead }: {
   G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null; myTurn: boolean;
+  hasMove: boolean; hadesLiving: number; setHadesLiving: (n: number) => void;
+  hadesUndead: number; setHadesUndead: (n: number) => void;
 }) {
   const turn = currentTurn(G)!;
   const pid = turn.playerId;
@@ -305,6 +331,12 @@ function HadesActionBar({ G, me, moves, selected, myTurn }: {
   const canTroop = !!sel && isIsland(sel) && sel.ownerId === pid;
   const canFleet = !!sel && isSea(sel) && canPlaceFleet(G, pid, sel.id);
   const canNecropolis = !!sel && isIsland(sel) && sel.ownerId === pid && !sel.necropolis;
+  // Источник перемещения Нежити выбран — показываем выбор состава (стрелки рисует карта).
+  const troopSource = !!sel && isIsland(sel) && sel.ownerId === pid && sel.undeadTroops > 0;
+  const fleetSource = !!sel && isSea(sel) && sel.ownerId === pid && sel.undeadFleets > 0;
+  const moveSource = troopSource || fleetSource;
+  const maxUndead = troopSource ? (sel as any).undeadTroops : fleetSource ? (sel as any).undeadFleets : 1;
+  const maxLiving = troopSource ? Math.min((sel as any).troops, 2) : fleetSource ? (sel as any).fleets : 0;
 
   return (
     <div className="action-bar hades">
@@ -325,6 +357,17 @@ function HadesActionBar({ G, me, moves, selected, myTurn }: {
             title="на месте Метрополии своего острова (постройки снесутся)">
             ⚰️ Некрополь
           </button>
+          {moveSource && (
+            <span className="move-box">
+              <span>двинуть 💀:</span>
+              <input type="number" min={1} max={maxUndead} value={Math.min(hadesUndead, maxUndead)} style={{ width: 38 }}
+                onChange={(e) => setHadesUndead(Math.max(1, Math.min(maxUndead, Number(e.target.value))))} />
+              <span>+ живых:</span>
+              <input type="number" min={0} max={maxLiving} value={Math.min(hadesLiving, maxLiving)} style={{ width: 38 }}
+                onChange={(e) => setHadesLiving(Math.max(0, Math.min(maxLiving, Number(e.target.value))))} />
+              <span className="sel-hint">{hasMove ? '→ стрелка на карте (1🪙)' : 'нет ходов'}</span>
+            </span>
+          )}
           <CreatureButtons G={G} pid={pid} moves={moves} sel={sel} selected={selected} god={turn.god} s={s} />
           <button className="end-turn" onClick={() => moves.endGod()}>Завершить →</button>
         </div>
@@ -470,16 +513,19 @@ function CombatPanel({ G, me, moves }: { G: CycladesState; me: string | null; mo
   const unit = c.kind === 'naval' ? '⛵' : '⚔️';
   const myFight = c.attackerId === me;
   const last = c.lastRoll;
+  const aUndead = c.attackerUndead ?? 0;
+  const dUndead = c.defenderUndead ?? 0;
+  const undeadNote = (n: number) => (n > 0 ? ` (💀${n})` : '');
   return (
     <div className="action-bar combat">
       <div className="ab-title">⚔️ Бой за {loc?.name} · раунд {c.round}</div>
       <div className="ab-controls">
         <span className="combat-side" style={{ color: attacker.color }}>
-          {attacker.name}: {unit}×{c.attackerUnits}
+          {attacker.name}: {unit}×{c.attackerUnits}{undeadNote(aUndead)}
         </span>
         <span className="combat-vs">против</span>
         <span className="combat-side" style={{ color: defender.color }}>
-          {defender.name}: {unit}×{c.defenderUnits}{c.defenderBonus > 0 ? ` (+${c.defenderBonus}🛡)` : ''}
+          {defender.name}: {unit}×{c.defenderUnits}{undeadNote(dUndead)}{c.defenderBonus > 0 ? ` (+${c.defenderBonus}🛡)` : ''}
         </span>
         {last && (
           <span className="combat-roll">
@@ -489,6 +535,12 @@ function CombatPanel({ G, me, moves }: { G: CycladesState; me: string | null; mo
               {last.aLost && last.dLost ? 'обоюдные потери' : last.dLost ? 'защитник теряет юнита' : last.aLost ? 'атакующий теряет юнита' : 'без потерь'}
             </span>
           </span>
+        )}
+        {myFight && aUndead > 0 && c.attackerUnits > aUndead && (
+          <button className="loss-order" title="кого терять первым при поражении в раунде"
+            onClick={() => moves.setLossOrder(!(c.loseUndeadFirst ?? true))}>
+            теряю первыми: {(c.loseUndeadFirst ?? true) ? '💀 Нежить' : '⚔️ обычных'}
+          </button>
         )}
         {myFight ? (
           <>

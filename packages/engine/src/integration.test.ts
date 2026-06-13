@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { Client } from 'boardgame.io/client';
-import { CycladesGame } from './game';
+import { makeCycladesGame } from './game';
 import type { CycladesState } from './types';
+
+// Базовый поток фаз тестируем с выключенным Модулем 2 (Аид), чтобы случайный
+// бросок трека Угрозы не вмешивался в детерминированные ожидания очереди богов.
+const BaseGame = makeCycladesGame({ hades: false });
 
 /** Запускает локального клиента (singleplayer) и возвращает его. */
 function makeClient(numPlayers = 2) {
-  const client = Client<CycladesState>({ game: CycladesGame, numPlayers });
+  const client = Client<CycladesState>({ game: BaseGame, numPlayers });
   client.start();
   return client;
 }

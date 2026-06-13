@@ -1,6 +1,6 @@
 import type { Game, Ctx } from 'boardgame.io';
 import { INVALID_MOVE } from 'boardgame.io/core';
-import type { CycladesState, TerritoryId, GodName } from './types';
+import type { CycladesState, TerritoryId, GodName, ModuleFlags } from './types';
 import { METROPOLIS_TO_WIN } from './types';
 import { setupGame } from './setup';
 import { applyIncome } from './income';
@@ -25,7 +25,7 @@ import {
 import { metropolisCount, islandsOf, log } from './helpers';
 import { applyPlaceMetropolis } from './metropolis';
 import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits, applyChimeraReplay, endChimera, applySatyrSteal, endSatyr, applyCyclopsReplace, endCyclops } from './creatures';
-import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus, applyPegasusMove, endPegasus } from './movement';
+import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus, applyPegasusMove, endPegasus, applyHadesTroopMove, applyHadesFleetMove, applySetLossOrder } from './movement';
 import { dieFromRandom } from './combat';
 import { advanceHadesTrack, applyRecruitUndead, applyBuildNecropolis } from './hades';
 import type { TerritoryId as TId } from './types';
@@ -152,6 +152,25 @@ export const CycladesGame: Game<CycladesState> = {
           const turn = currentTurn(G);
           if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || !turn.isHades) return INVALID_MOVE;
           if (applyBuildNecropolis(G, playerID!, islandId)) return INVALID_MOVE;
+        },
+
+        // Аид: перемещение отряда (Нежить + опц. живые) остров→остров по мосту флотов.
+        moveHadesTroops: ({ G, playerID }, fromId: TId, toId: TId, living: number, undead: number) => {
+          const turn = currentTurn(G);
+          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || !turn.isHades) return INVALID_MOVE;
+          if (applyHadesTroopMove(G, playerID!, fromId, toId, living, undead)) return INVALID_MOVE;
+        },
+
+        // Аид: перемещение флота (Нежить + опц. живые) до 3 клеток.
+        moveHadesFleets: ({ G, playerID }, fromId: TId, toId: TId, living: number, undead: number) => {
+          const turn = currentTurn(G);
+          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || !turn.isHades) return INVALID_MOVE;
+          if (applyHadesFleetMove(G, playerID!, fromId, toId, living, undead)) return INVALID_MOVE;
+        },
+
+        // Бой с участием Нежити: атакующий выбирает порядок потерь (Нежить/обычные).
+        setLossOrder: ({ G, playerID }, loseUndeadFirst: boolean) => {
+          if (applySetLossOrder(G, playerID!, loseUndeadFirst)) return INVALID_MOVE;
         },
 
         // Установка Метрополии на выбранный остров (после авто-триггера: 4 философа / 4 здания).
@@ -304,6 +323,15 @@ export const CycladesGame: Game<CycladesState> = {
     return { winner: contenders[0].pid };
   },
 };
+
+/**
+ * Фабрика игры с выбором включённых модулей дополнения. По умолчанию (CycladesGame)
+ * Модуль 2 «Аид» включён. Тесты базового потока могут отключить его для
+ * детерминизма: `makeCycladesGame({ hades: false })`.
+ */
+export function makeCycladesGame(modules: Partial<ModuleFlags>): Game<CycladesState> {
+  return { ...CycladesGame, setup: ({ ctx, random }) => setupGame(ctx, random, modules) };
+}
 
 // Реэкспорт для краткости в тестах.
 export { isSettled };
