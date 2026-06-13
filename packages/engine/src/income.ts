@@ -17,52 +17,64 @@ export function addNecropolisGold(G: CycladesState, n: number): void {
   if (isl) isl.necropolisGold += n;
 }
 
+/** Цербер на этой клетке (Модуль 3): собирает доход вместо владельца. */
+function cerberusOn(G: CycladesState, location: PlayerID): PlayerID | null {
+  const c = G.boardCreatures.find((bc) => bc.kind === 'cerberus' && bc.location === location);
+  return c ? c.ownerId : null;
+}
+
 /**
- * Доход игрока за цикл = сумма рогов изобилия на морских клетках, где стоит
- * его флот. Рога лежат на воде — кто держит там корабль, тот и получает золото.
+ * Доход игрока с его собственных территорий = рога изобилия + маркеры процветания
+ * (на суше — владельцу; на воде — держащему там флот). Используется Мойрами
+ * (повторный доход) и Деметрой; перенаправление Цербером тут не учитывается.
  */
 export function incomeFor(G: CycladesState, pid: PlayerID): number {
   let sum = 0;
   for (const t of Object.values(G.territories)) {
-    // Рог на воде — доход тому, чей флот на клетке.
-    if (isSea(t) && t.cornucopia > 0 && t.ownerId === pid && t.fleets > 0) {
-      sum += t.cornucopia;
-    }
-    // Рог на суше — доход владельцу острова.
-    if (t.kind === 'island' && t.cornucopia > 0 && t.ownerId === pid) {
-      sum += t.cornucopia;
-    }
+    if (isSea(t) && t.ownerId === pid && t.fleets > 0) sum += t.cornucopia + t.prosperity;
+    if (isIsland(t) && t.ownerId === pid) sum += t.cornucopia + t.prosperity;
   }
   return sum;
 }
 
-/** Начисляет доход всем живым игрокам. */
+/** Начисляет доход всем живым игрокам (с учётом Цербера, перенаправляющего доход острова). */
 export function applyIncome(G: CycladesState): void {
-  for (const pid of Object.keys(G.players)) {
+  const credit: Record<PlayerID, number> = {};
+  const give = (pid: PlayerID | null, n: number) => {
+    if (!pid || n <= 0) return;
     const p = G.players[pid];
-    if (p.isEliminated) continue;
-    const income = incomeFor(G, pid);
-    if (income > 0) {
-      p.gold += income;
-      log(G, `${p.name} получает ${income} золота с рогов изобилия.`);
+    if (!p || p.isEliminated) return;
+    credit[pid] = (credit[pid] ?? 0) + n;
+  };
+  for (const t of Object.values(G.territories)) {
+    if (isIsland(t) && t.ownerId) {
+      // Доход острова забирает Цербер (если стоит), иначе владелец.
+      give(cerberusOn(G, t.id) ?? t.ownerId, t.cornucopia + t.prosperity);
+    } else if (isSea(t) && t.ownerId && t.fleets > 0) {
+      give(t.ownerId, t.cornucopia + t.prosperity);
     }
+  }
+  for (const [pid, n] of Object.entries(credit)) {
+    G.players[pid].gold += n;
+    log(G, `${G.players[pid].name} получает ${n} золота с рогов изобилия.`);
   }
   collectNecropolisGold(G);
 }
 
 /**
- * Владелец острова с накопленным золотом Некрополя забирает его в фазе дохода.
- * Золото лежит на острове (а не на игроке), поэтому при захвате острова его
- * получает новый владелец, а при переносе Некрополя — старый остров сохраняет
- * накопленное до ближайшей фазы дохода (Модуль 2).
+ * Золото Некрополя забирает в фазе дохода владелец острова (или Цербер, если он
+ * на этом острове — FAQ: Цербер забирает и ЗМ Некрополя). Золото лежит на
+ * острове: при захвате достаётся новому владельцу, при переносе Некрополя
+ * остаётся на старом острове до ближайшего дохода.
  */
 export function collectNecropolisGold(G: CycladesState): void {
   for (const t of Object.values(G.territories)) {
     if (!isIsland(t) || t.necropolisGold <= 0) continue;
-    if (!t.ownerId) continue; // ничей остров — золото ждёт владельца
+    const collector = cerberusOn(G, t.id) ?? t.ownerId;
+    if (!collector) continue; // ничей остров без Цербера — золото ждёт владельца
     const amount = t.necropolisGold;
-    G.players[t.ownerId].gold += amount;
+    G.players[collector].gold += amount;
     t.necropolisGold = 0;
-    log(G, `${G.players[t.ownerId].name} забирает ${amount}🪙 с Некрополя (${t.name}).`);
+    log(G, `${G.players[collector].name} забирает ${amount}🪙 с Некрополя (${t.name}).`);
   }
 }

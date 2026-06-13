@@ -8,7 +8,7 @@ import {
 } from './types';
 import { isIsland, isSea } from './board';
 import { islandsOf, log } from './helpers';
-import { incomeFor } from './income';
+import { incomeFor, necropolisIsland } from './income';
 import { checkMetropolis } from './metropolis';
 
 /** Куда нужно нацелить существо при покупке (или none — без цели). */
@@ -177,7 +177,7 @@ export const CREATURES: Record<string, CreatureDef> = {
   // === Фигурные существа: ставятся на доску, эффект через присутствие ===
   chiron: {
     id: 'chiron', name: 'Хирон', emblem: '🏹', cost: 2, target: 'any-island', placed: true,
-    desc: 'Фигура на остров: защищает от Пегаса, Гиганта и Гарпии (до след. хода)',
+    desc: 'Фигура на остров: защищает от Пегаса, Гиганта, Гарпии, Эмпусы и Фурий (до след. хода)',
     apply: () => null,
   },
   medusa: {
@@ -199,6 +199,31 @@ export const CREATURES: Record<string, CreatureDef> = {
     id: 'kraken', name: 'Кракен', emblem: '🦑', cost: 4, target: 'any-sea', placed: true,
     desc: 'Фигура на море: топит флот в зоне; зона закрыта для флота, пока он там',
     apply: () => null,
+  },
+  // === Новые существа дополнения «Аид» (Модуль 3) ===
+  cerberus: {
+    id: 'cerberus', name: 'Цербер', emblem: '🐕', cost: 3, target: 'any-island', placed: true,
+    desc: 'Фигура на остров: в фазе дохода вы собираете его доход (включая ЗМ Некрополя)',
+    apply: () => null,
+  },
+  empusa: {
+    id: 'empusa', name: 'Эмпуса', emblem: '🧛', cost: 2, target: 'none',
+    desc: 'Украдите всё золото с Некрополя',
+    apply: (G, pid) => {
+      const isl = necropolisIsland(G);
+      if (!isl || isl.necropolisGold <= 0) return null; // нечего красть — эффект пустой
+      if (G.boardCreatures.some((c) => c.kind === 'chiron' && c.location === isl.id)) {
+        return 'Некрополь под защитой Хирона';
+      }
+      G.players[pid].gold += isl.necropolisGold;
+      isl.necropolisGold = 0;
+      return null;
+    },
+  },
+  furies: {
+    id: 'furies', name: 'Фурии', emblem: '👹', cost: 2, target: 'none',
+    desc: 'Переместите маркер процветания с любого острова на свой',
+    apply: (G, pid) => { G.furiesMove = pid; return null; },
   },
 };
 
@@ -516,6 +541,33 @@ export function applySatyrSteal(G: CycladesState, pid: PlayerID, victimId: Playe
 export function endSatyr(G: CycladesState, pid: PlayerID): string | null {
   if (G.satyrSteal !== pid) return 'сейчас не ваш Сатир';
   G.satyrSteal = null;
+  return null;
+}
+
+/**
+ * Фурии: перенести 1 маркер процветания с любого острова (с маркером, не под
+ * Хироном) на свой остров. Возвращает текст ошибки или null.
+ */
+export function applyFuriesTake(
+  G: CycladesState, pid: PlayerID, sourceId: string, destId: string,
+): string | null {
+  if (G.furiesMove !== pid) return 'сейчас не ваши Фурии';
+  const src = G.territories[sourceId];
+  const dest = G.territories[destId];
+  if (!src || !isIsland(src) || src.prosperity <= 0) return 'нужен остров с маркером процветания';
+  if (G.boardCreatures.some((c) => c.kind === 'chiron' && c.location === sourceId)) return 'остров под защитой Хирона';
+  if (!dest || !isIsland(dest) || dest.ownerId !== pid) return 'нужен свой остров-получатель';
+  src.prosperity -= 1;
+  dest.prosperity += 1;
+  G.furiesMove = null;
+  log(G, `${G.players[pid].name}: Фурии переносят маркер процветания ${src.name} → ${dest.name}.`);
+  return null;
+}
+
+/** Отменить Фурий (маркер не двигаем). */
+export function endFuries(G: CycladesState, pid: PlayerID): string | null {
+  if (G.furiesMove !== pid) return 'сейчас не ваши Фурии';
+  G.furiesMove = null;
   return null;
 }
 

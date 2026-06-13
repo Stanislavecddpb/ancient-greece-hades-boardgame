@@ -24,7 +24,7 @@ import {
 } from './actions';
 import { metropolisCount, islandsOf, log } from './helpers';
 import { applyPlaceMetropolis } from './metropolis';
-import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits, applyChimeraReplay, endChimera, applySatyrSteal, endSatyr, applyCyclopsReplace, endCyclops } from './creatures';
+import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits, applyChimeraReplay, endChimera, applySatyrSteal, endSatyr, applyCyclopsReplace, endCyclops, applyFuriesTake, endFuries } from './creatures';
 import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus, applyPegasusMove, endPegasus, applyHadesTroopMove, applyHadesFleetMove, applySetLossOrder } from './movement';
 import { dieFromRandom } from './combat';
 import { advanceHadesTrack, applyRecruitUndead, applyBuildNecropolis } from './hades';
@@ -274,6 +274,14 @@ export const CycladesGame: Game<CycladesState> = {
         },
         endSatyr: ({ G, playerID }) => {
           if (endSatyr(G, playerID!)) return INVALID_MOVE;
+        },
+
+        // Фурии: перенести маркер процветания с любого острова на свой.
+        furiesTake: ({ G, playerID }, sourceId: TId, destId: TId) => {
+          if (applyFuriesTake(G, playerID!, sourceId, destId)) return INVALID_MOVE;
+        },
+        endFuries: ({ G, playerID }) => {
+          if (endFuries(G, playerID!)) return INVALID_MOVE;
         },
 
         // Циклоп: заменить выбранное здание острова на здание другого типа.

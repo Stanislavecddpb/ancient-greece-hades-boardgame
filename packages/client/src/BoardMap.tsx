@@ -172,6 +172,22 @@ function UndeadMarker({ x, y, kind, count, color }: {
   );
 }
 
+/** Подвижные маркеры процветания (Аполлон/Гермес; крадутся Фуриями). */
+function ProsperityMarkers({ x, y, n }: { x: number; y: number; n: number }) {
+  const shown = Math.min(n, 4);
+  return (
+    <g transform={`translate(${x} ${y})`} filter="url(#pieceShadow)">
+      {Array.from({ length: shown }, (_, k) => (
+        <g key={k} transform={`translate(${(k - (shown - 1) / 2) * 15} 0)`}>
+          <circle r="8.5" fill="#caa24f" stroke="#5e4720" strokeWidth="1.5" />
+          <text textAnchor="middle" y="3.2" fontSize="10" fill="#3a2c12" fontWeight="800">✦</text>
+        </g>
+      ))}
+      {n > 4 && <text x={shown * 8} y="3" className="badge-txt">+{n - 4}</text>}
+    </g>
+  );
+}
+
 function Badge({ x, y, text }: { x: number; y: number; text: string | number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
@@ -206,6 +222,8 @@ function SeaCell({ sea, G, selected, color, onSelect }: {
         <UndeadMarker x={x - SEA_R * 0.55} y={y + SEA_R * 0.55} kind="fleet"
           count={sea.undeadFleets} color={G.players[sea.ownerId].color} />
       )}
+      {/* Маркеры процветания в зоне (Гермес) — сверху клетки. */}
+      {sea.prosperity > 0 && <ProsperityMarkers x={x} y={y - SEA_R * 0.85} n={sea.prosperity} />}
       {/* рог изобилия — сверху клетки, поверх кораблей; в столбик при count>1 */}
       {sea.cornucopia > 0 && (
         <g transform={`translate(${x} ${y - SEA_R * 0.62})`}>
@@ -296,6 +314,9 @@ function IslandNode({ isl, G, me, selected, color, onSelect }: {
         <UndeadMarker x={isl.pos.x - TROOP_AX - 6} y={isl.pos.y + TROOP_AY} kind="troop"
           count={isl.undeadTroops} color={G.players[isl.ownerId].color} />
       )}
+
+      {/* Маркеры процветания (подвижные) — сверху острова. */}
+      {isl.prosperity > 0 && <ProsperityMarkers x={isl.pos.x} y={isl.pos.y - LAND_R * 0.95} n={isl.prosperity} />}
 
       {/* рога изобилия на суше — по одной иконке на рог, в столбик при count>1 */}
       {isl.cornucopiaSpots.map((s, i) => (

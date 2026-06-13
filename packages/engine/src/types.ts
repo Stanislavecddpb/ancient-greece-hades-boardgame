@@ -67,8 +67,10 @@ export interface Island {
   cells: LandCell[];
   /** Сколько объектов (здания + метрополия) помещается на острове. */
   buildSlots: number;
-  /** Суммарно рогов изобилия на суше острова — доход владельцу. */
+  /** Суммарно рогов изобилия на суше острова (печатные, неподвижные) — доход владельцу. */
   cornucopia: number;
+  /** Маркеры процветания на острове (подвижные: Аполлон/Гермес; крадутся Фуриями). */
+  prosperity: number;
   /** Точки отрисовки рогов на суше. */
   cornucopiaSpots: CornucopiaSpot[];
   adjacentSeas: TerritoryId[];
@@ -97,6 +99,8 @@ export interface Sea {
   col: number;
   /** Рог изобилия: золото в фазе дохода тому, чей флот стоит на клетке. */
   cornucopia: number;
+  /** Маркеры процветания в зоне (подвижные: Гермес) — доход держащему флот. */
+  prosperity: number;
   adjacentSeas: TerritoryId[];
   adjacentIslands: TerritoryId[];
   // --- динамика ---
@@ -324,6 +328,8 @@ export interface CycladesState {
   chimeraPick: PlayerID | null;
   /** Игрок, выбирающий у кого украсть философа (Сатир), или null. */
   satyrSteal: PlayerID | null;
+  /** Игрок, перемещающий маркер процветания (Фурии): выбирает источник и свой остров. */
+  furiesMove: PlayerID | null;
   /** Замена здания Циклопом (выбран остров, идёт выбор типа) или null. */
   cyclopsSwap: CyclopsSwapState | null;
   /** Игрок обязан разместить Метрополию (сработал триггер 4 философа / 4 здания) или null. */

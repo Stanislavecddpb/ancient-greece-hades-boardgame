@@ -89,6 +89,7 @@ export function setupGame(ctx: Ctx, random?: RandomAPI, modules?: Partial<Module
     pegasusMove: null,
     chimeraPick: null,
     satyrSteal: null,
+    furiesMove: null,
     cyclopsSwap: null,
     metropolisPlace: null,
     modules: { hades: true, ...modules },

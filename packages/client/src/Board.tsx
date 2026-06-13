@@ -190,6 +190,8 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
           <ChimeraPanel G={G} me={me} moves={moves} selected={selected} />
         ) : G.satyrSteal === me ? (
           <SatyrPanel G={G} ctx={ctx} me={me} moves={moves} nameOf={nameOf} />
+        ) : G.furiesMove === me ? (
+          <FuriesPanel G={G} me={me} moves={moves} selected={selected} />
         ) : G.cyclopsSwap && G.cyclopsSwap.playerId === me ? (
           <CyclopsPanel G={G} moves={moves} />
         ) : ctx.phase === 'actions' && G.pendingCornucopia ? (
@@ -740,6 +742,35 @@ function SatyrPanel({ G, ctx, me, moves, nameOf }: {
   );
 }
 
+/** Фурии: перенести маркер процветания с любого острова на свой (два клика по карте). */
+function FuriesPanel({ G, me, moves, selected }: {
+  G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null;
+}) {
+  const [source, setSource] = useState<TerritoryId | null>(null);
+  const sel = selected ? G.territories[selected] : null;
+  const canSource = !!sel && isIsland(sel) && sel.prosperity > 0;
+  const srcT = source ? G.territories[source] : null;
+  const canDest = !!sel && isIsland(sel) && sel.ownerId === me && !!source && selected !== source;
+  return (
+    <div className="action-bar sphinx">
+      <div className="ab-title">👹 Фурии: перенесите маркер процветания на свой остров</div>
+      <div className="ab-controls">
+        <span className="sel-hint">
+          {source ? `источник: ${srcT?.name}` : 'выберите остров-источник (с маркером ✦)'}
+        </span>
+        {!source ? (
+          <button disabled={!canSource} onClick={() => setSource(selected)}>Выбрать источник</button>
+        ) : (
+          <button disabled={!canDest} onClick={() => { moves.furiesTake(source, selected); setSource(null); }}>
+            Перенести на {canDest ? sel!.name : 'свой остров'}
+          </button>
+        )}
+        <button className="end-turn" onClick={() => moves.endFuries()}>Отмена</button>
+      </div>
+    </div>
+  );
+}
+
 const BUILD_LABEL: Record<string, string> = {
   port: 'Порт', fortress: 'Крепость', temple: 'Храм', university: 'Университет',
 };
@@ -809,10 +840,10 @@ function ProsperityPrompt({ G, me, moves, selected }: {
   const ok = !!sel && isIsland(sel) && sel.ownerId === me;
   return (
     <div className="action-bar prosperity">
-      <div className="ab-title">☀️ Аполлон: положите рог изобилия на свой остров (+1 к доходу)</div>
+      <div className="ab-title">☀️ Аполлон: положите маркер процветания на свой остров (+1 к доходу)</div>
       <div className="ab-controls">
         <span className="sel-hint">{sel ? sel.name : 'кликните свой остров на карте'}</span>
-        <button disabled={!ok} onClick={() => moves.placeCornucopia(selected)}>🌽 Положить рог</button>
+        <button disabled={!ok} onClick={() => moves.placeCornucopia(selected)}>✦ Положить маркер</button>
       </div>
     </div>
   );

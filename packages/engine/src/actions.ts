@@ -156,11 +156,10 @@ export function applyPlaceCornucopia(G: CycladesState, pid: string, islandId: Te
   if (G.pendingCornucopia !== pid) return 'сейчас не ваш рог изобилия';
   const isl = G.territories[islandId];
   if (!isl || !isIsland(isl) || isl.ownerId !== pid) return 'нужен свой остров';
-  isl.cornucopia += 1;
-  if (isl.cornucopiaSpots.length > 0) isl.cornucopiaSpots[0].count += 1;
-  else isl.cornucopiaSpots.push({ pos: { ...isl.cells[0].pos }, count: 1 });
+  // Аполлон кладёт ПОДВИЖНЫЙ маркер процветания (+1 к доходу; крадётся Фуриями).
+  isl.prosperity += 1;
   G.pendingCornucopia = null;
-  log(G, `${G.players[pid].name} кладёт рог изобилия на ${isl.name} (Аполлон).`);
+  log(G, `${G.players[pid].name} кладёт маркер процветания на ${isl.name} (Аполлон).`);
   return null;
 }
 
