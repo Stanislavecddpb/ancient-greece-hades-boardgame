@@ -4,6 +4,7 @@ import { oneRound, type DieRoll } from './combat';
 import { log } from './helpers';
 import { checkMetropolis } from './metropolis';
 import { boardCreatureAt } from './creatures';
+import { addNecropolisGold } from './income';
 
 export const FLEET_RANGE = 3;
 
@@ -404,7 +405,13 @@ export function applyCombatRound(G: CycladesState, pid: PlayerID, roll: DieRoll)
   const c = G.combat;
   if (!c) return 'нет боя';
   if (c.attackerId !== pid) return 'не ваш бой';
+  const beforeAtk = c.attackerUnits;
+  const beforeDef = c.defenderUnits;
   oneRound(c, roll);
+  // Каждое погибшее обычное (не Нежить) Войско/Флотилию кладёт 1🪙 на Некрополь.
+  // Бой с участием Нежити пока не реализован, поэтому все потери — обычные юниты.
+  const deaths = (beforeAtk - c.attackerUnits) + (beforeDef - c.defenderUnits);
+  if (deaths > 0) addNecropolisGold(G, deaths);
   // Синхронизируем видимые юниты защитника на клетке.
   const loc = G.territories[c.location];
   if (c.kind === 'naval' && isSea(loc)) loc.fleets = c.defenderUnits;

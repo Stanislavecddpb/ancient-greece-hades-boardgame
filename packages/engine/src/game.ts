@@ -27,6 +27,7 @@ import { applyPlaceMetropolis } from './metropolis';
 import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellUnits, applyChimeraReplay, endChimera, applySatyrSteal, endSatyr, applyCyclopsReplace, endCyclops } from './creatures';
 import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus, applyPegasusMove, endPegasus } from './movement';
 import { dieFromRandom } from './combat';
+import { advanceHadesTrack, applyRecruitUndead, applyBuildNecropolis } from './hades';
 import type { TerritoryId as TId } from './types';
 
 export const GAME_ID = 'cyclades';
@@ -64,8 +65,10 @@ export const CycladesGame: Game<CycladesState> = {
     // по очереди делают подношения богам.
     auction: {
       next: 'actions',
-      onBegin: ({ G, ctx }) => {
+      onBegin: ({ G, ctx, random }) => {
         applyIncome(G);
+        // Модуль 2: в начале цикла бросаем 2 кубика и двигаем колонну Аида.
+        if (G.modules.hades) advanceHadesTrack(G, random.Die(6), random.Die(6));
         setupAuction(G, ctx);
       },
       endIf: ({ G, ctx }) => auctionComplete(G, ctx),
@@ -125,16 +128,30 @@ export const CycladesGame: Game<CycladesState> = {
       moves: {
         recruit: ({ G, playerID }, targetId?: TerritoryId) => {
           const turn = currentTurn(G);
-          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID) return INVALID_MOVE;
+          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || turn.isHades) return INVALID_MOVE;
           const err = applyRecruit(G, playerID!, turn.god, targetId);
           if (err) return INVALID_MOVE;
         },
 
         build: ({ G, playerID }, islandId: TerritoryId) => {
           const turn = currentTurn(G);
-          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID) return INVALID_MOVE;
+          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || turn.isHades) return INVALID_MOVE;
           const err = applyBuild(G, playerID!, turn.god, islandId);
           if (err) return INVALID_MOVE;
+        },
+
+        // Аид: наём одной Нежити (Войско/Флотилия) — до 5 за активацию (1 бесплатно).
+        recruitUndead: ({ G, playerID }, kind: 'troop' | 'fleet', targetId?: TerritoryId) => {
+          const turn = currentTurn(G);
+          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || !turn.isHades) return INVALID_MOVE;
+          if (applyRecruitUndead(G, playerID!, kind, targetId)) return INVALID_MOVE;
+        },
+
+        // Аид: постройка Некрополя на месте Метрополии своего острова.
+        buildNecropolis: ({ G, playerID }, islandId: TerritoryId) => {
+          const turn = currentTurn(G);
+          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || !turn.isHades) return INVALID_MOVE;
+          if (applyBuildNecropolis(G, playerID!, islandId)) return INVALID_MOVE;
         },
 
         // Установка Метрополии на выбранный остров (после авто-триггера: 4 философа / 4 здания).
@@ -145,7 +162,7 @@ export const CycladesGame: Game<CycladesState> = {
         // Посейдон: начать приказ флоту (1🪙 на первом переходе).
         startFleetMove: ({ G, playerID }, seaId: TId) => {
           const turn = currentTurn(G);
-          if (G.combat || !turn || turn.playerId !== playerID || turn.god !== 'poseidon') return INVALID_MOVE;
+          if (G.combat || !turn || turn.playerId !== playerID || turn.god !== 'poseidon' || turn.isHades) return INVALID_MOVE;
           if (startFleetMove(G, playerID!, seaId)) return INVALID_MOVE;
         },
 
@@ -163,7 +180,7 @@ export const CycladesGame: Game<CycladesState> = {
         // Арес: перемещение войск по «мосту» из флотов (с возможным сухопутным боем).
         moveTroops: ({ G, playerID }, fromId: TId, toId: TId, count: number) => {
           const turn = currentTurn(G);
-          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || turn.god !== 'ares') return INVALID_MOVE;
+          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || turn.god !== 'ares' || turn.isHades) return INVALID_MOVE;
           if (applyTroopMove(G, playerID!, fromId, toId, count)) return INVALID_MOVE;
         },
 
@@ -187,7 +204,7 @@ export const CycladesGame: Game<CycladesState> = {
         // Зевс: прокрутить колоду существ за 1 золото.
         cycleCreatures: ({ G, playerID }) => {
           const turn = currentTurn(G);
-          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || turn.god !== 'zeus') return INVALID_MOVE;
+          if (G.combat || G.fleetMove || !turn || turn.playerId !== playerID || turn.god !== 'zeus' || turn.isHades) return INVALID_MOVE;
           if (applyCycleCreatures(G, playerID!)) return INVALID_MOVE;
         },
 

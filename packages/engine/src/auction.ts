@@ -7,6 +7,7 @@ import {
   COMPETITIVE_GODS,
 } from './types';
 import { log, islandsOf } from './helpers';
+import { markHadesSlot } from './hades';
 
 /**
  * Боги, выставляемые на аукцион в этом цикле: numPlayers конкурентных богов
@@ -54,6 +55,8 @@ export function setupAuction(G: CycladesState, ctx: Ctx): void {
   const slots: GodSlot[] = gods.map((god) => ({ god, occupantId: null, bid: 0 }));
   const starter = ctx.playOrder[G.startIndex % ctx.playOrder.length];
   G.auction = { slots, apollo: [], toAct: starter };
+  // Если Аид активен в этом цикле — его тайл накрывает бога над Аполлоном.
+  markHadesSlot(G);
   log(G, `Цикл ${G.cycle}: аукцион богов начинается. Первым предлагает ${G.players[starter].name}.`);
 }
 

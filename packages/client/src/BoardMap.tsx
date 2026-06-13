@@ -153,6 +153,25 @@ function CreatureToken({ x, y, color, emblem }: { x: number; y: number; color: s
   );
 }
 
+/** Жетон Нежити (Аид): тёмный диск с черепом, обводкой цвета владельца и счётчиком. */
+function UndeadMarker({ x, y, kind, count, color }: {
+  x: number; y: number; kind: 'troop' | 'fleet'; count: number; color: string;
+}) {
+  const r = CELL_D * 0.24;
+  return (
+    <g transform={`translate(${x} ${y})`} filter="url(#pieceShadow)">
+      <circle r={r} fill="#0e0a14" stroke={color} strokeWidth="3" />
+      <text textAnchor="middle" y={r * 0.4} fontSize={r * 1.05}>{kind === 'fleet' ? '☠' : '💀'}</text>
+      {count > 1 && (
+        <g transform={`translate(${r * 0.85} ${-r * 0.85})`}>
+          <circle r="8" fill="#2a1438" stroke="#cbb3e6" strokeWidth="1" />
+          <text className="badge-txt" y="3.2">{count}</text>
+        </g>
+      )}
+    </g>
+  );
+}
+
 function Badge({ x, y, text }: { x: number; y: number; text: string | number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
@@ -181,6 +200,11 @@ function SeaCell({ sea, G, selected, color, onSelect }: {
           ))}
           {sea.fleets > 4 && <Badge x={x + SEA_R - 4} y={y - SEA_R + 4} text={sea.fleets} />}
         </g>
+      )}
+      {/* Флотилии Нежити (Аид) — тёмный жетон с черепом и счётчиком. */}
+      {SHOW_PIECES && sea.undeadFleets > 0 && sea.ownerId && (
+        <UndeadMarker x={x - SEA_R * 0.55} y={y + SEA_R * 0.55} kind="fleet"
+          count={sea.undeadFleets} color={G.players[sea.ownerId].color} />
       )}
       {/* рог изобилия — сверху клетки, поверх кораблей; в столбик при count>1 */}
       {sea.cornucopia > 0 && (
@@ -242,6 +266,16 @@ function IslandNode({ isl, G, me, selected, color, onSelect }: {
       {SHOW_PIECES && isl.hasMetropolis && (
         <g transform={`translate(${isl.pos.x} ${isl.pos.y})`}><Metropolis size={METRO_SIZE} /></g>
       )}
+      {/* Некрополь (Аид): ⚰️ на месте Метрополии + счётчик накопленного золота. */}
+      {SHOW_PIECES && isl.necropolis && (
+        <g transform={`translate(${isl.pos.x} ${isl.pos.y})`}>
+          <g filter="url(#pieceShadow)">
+            <circle r={CELL_D * 0.32} fill="#1a1320" stroke="#9a6cd0" strokeWidth="3" />
+            <text textAnchor="middle" y={CELL_D * 0.12} fontSize={CELL_D * 0.4}>⚰️</text>
+          </g>
+          {isl.necropolisGold > 0 && <Badge x={CELL_D * 0.3} y={-CELL_D * 0.3} text={`${isl.necropolisGold}🪙`} />}
+        </g>
+      )}
 
       {/* войска — снизу справа, стопкой (нижние спереди), при избытке — счётчик */}
       {SHOW_PIECES && isl.troops > 0 && isl.ownerId && (
@@ -255,6 +289,12 @@ function IslandNode({ isl, G, me, selected, color, onSelect }: {
             <Badge x={isl.pos.x + TROOP_AX + 13} y={isl.pos.y + TROOP_AY - TROOP_MAX_SHOWN * TROOP_OVERLAP} text={isl.troops} />
           )}
         </g>
+      )}
+
+      {/* Войска Нежити (Аид) — тёмный жетон с черепом слева снизу. */}
+      {SHOW_PIECES && isl.undeadTroops > 0 && isl.ownerId && (
+        <UndeadMarker x={isl.pos.x - TROOP_AX - 6} y={isl.pos.y + TROOP_AY} kind="troop"
+          count={isl.undeadTroops} color={G.players[isl.ownerId].color} />
       )}
 
       {/* рога изобилия на суше — по одной иконке на рог, в столбик при count>1 */}

@@ -3,6 +3,7 @@ import {
   type CycladesState,
   type GodName,
   COMPETITIVE_GODS,
+  HADES_THRESHOLD,
 } from '@cyclades/engine';
 
 interface GodData {
@@ -12,6 +13,13 @@ interface GodData {
   abilities: string[];
   build?: string;
 }
+
+/** Описание тайла Аида (Модуль 2) — показывается на слоте, накрытом Аидом. */
+const HADES_DATA: GodData = {
+  title: 'Аид', emblem: '💀', theme: '#4b2e6b',
+  abilities: ['Нанять 1–5 Нежити (1-я бесплатно, далее 1/2/3/4🪙)', 'Построить Некрополь', 'Двигать Нежить (живые могут примкнуть)'],
+  build: '⚰️ Некрополь (на месте Метрополии)',
+};
 
 const GOD_DATA: Record<GodName, GodData> = {
   ares: {
@@ -62,6 +70,7 @@ export function GodBoard({ G, ctx, me, moves, nameOf }: Props) {
     <div className="godboard">
       <div className="gb-top">
         <TurnOrder G={G} ctx={ctx} name={name} />
+        {G.modules.hades && <HadesTrack G={G} />}
         <Creatures G={G} />
       </div>
 
@@ -96,6 +105,22 @@ function TurnOrder({ G, ctx, name }: { G: CycladesState; ctx: Props['ctx']; name
   );
 }
 
+/** Трек Угрозы Аида: колонна 0..9; при достижении 9 Аид входит в игру (Модуль 2). */
+function HadesTrack({ G }: { G: CycladesState }) {
+  const { column, active } = G.hades;
+  return (
+    <div className={`hades-track ${active ? 'active' : ''}`} title="Колонна Аида: при делении 9 в игру входит Аид">
+      <span className="ht-skull">💀</span>
+      <div className="ht-cells">
+        {Array.from({ length: HADES_THRESHOLD + 1 }, (_, i) => (
+          <span key={i} className={`ht-cell ${i === column ? 'on' : ''} ${i === HADES_THRESHOLD ? 'end' : ''}`}>{i}</span>
+        ))}
+      </div>
+      {active && <span className="ht-active">Аид в игре!</span>}
+    </div>
+  );
+}
+
 /** Рубашка колоды и сброс (горизонтальные карты) со счётчиками. */
 function Creatures({ G }: { G: CycladesState }) {
   return (
@@ -123,7 +148,11 @@ function DeckPile({ kind, label, count }: { kind: 'cardback' | 'discard'; label:
 function GodSlot({ god, G, phase, me, moves, name }: {
   god: GodName; G: CycladesState; phase: string | null; me: string | null; moves: any; name: (pid: string) => string;
 }) {
-  const d = GOD_DATA[god];
+  // Тайл этого бога накрыт Аидом? (в аукционе — по слоту, в действиях — по очереди).
+  const slotHades = (G.auction?.slots.find((s) => s.god === god)?.isHades
+    ?? G.actions?.queue.find((t) => t.god === god)?.isHades) ?? false;
+  const d = slotHades ? HADES_DATA : GOD_DATA[god];
+  const artSrc = slotHades ? '/gods/hades.jpg' : `/gods/${god}.jpg`;
   const [imgOk, setImgOk] = useState(true);
   const auction = G.auction;
   const isApollo = god === 'apollo';
@@ -136,7 +165,7 @@ function GodSlot({ god, G, phase, me, moves, name }: {
   const isActiveGod = phase === 'actions' && activeTurn?.god === god;
 
   return (
-    <div className={`god-slot ${isActiveGod ? 'acting' : ''} ${imgOk ? 'has-img' : ''}`} style={{ ['--theme' as any]: d.theme }}>
+    <div className={`god-slot ${isActiveGod ? 'acting' : ''} ${imgOk ? 'has-img' : ''} ${slotHades ? 'hades' : ''}`} style={{ ['--theme' as any]: d.theme }}>
       {/* ставочная дорожка (всегда сверху, кликабельна) */}
       {phase === 'auction' && !isApollo && (
         <BidTrack slotBid={slot?.bid ?? 0} occupant={occupant} canBid={!!myTurn && slot?.occupantId !== me}
@@ -148,7 +177,7 @@ function GodSlot({ god, G, phase, me, moves, name }: {
 
       {/* Арт карточки из фото; при отсутствии файла — текстовое описание. */}
       {imgOk ? (
-        <img className="gs-img" src={`/gods/${god}.jpg`} alt={d.title} onError={() => setImgOk(false)} />
+        <img className="gs-img" src={artSrc} alt={d.title} onError={() => setImgOk(false)} />
       ) : (
         <div className="gs-body">
           <div className="gs-emblem">{d.emblem}</div>

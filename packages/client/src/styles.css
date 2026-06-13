@@ -268,3 +268,28 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 
 .badge-txt { font-size: 11px; fill: #fff; text-anchor: middle; font-weight: 800; }
 .t-name { font-size: 13px; fill: #dce6f2; text-anchor: middle; font-weight: 700; }
+
+/* --- Модуль 2: Аид --- */
+.action-bar.hades { border-color: #7a4fb0; box-shadow: 0 0 0 1px #7a4fb055, 0 0 18px #7a4fb044; }
+.action-bar.hades button { background: #5a3a86; }
+.action-bar.hades button:disabled { opacity: 0.45; }
+.hades-cost { font-size: 0.78rem; color: #cdb6ea; padding: 2px 8px; background: #2a1c3e; border-radius: 6px; }
+
+.god-slot.hades { box-shadow: 0 0 0 2px #9a6cd0, 0 0 14px #7a4fb066; }
+
+.hades-track {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 7px; border-radius: 7px;
+  background: #1c1430; border: 1px solid #4b2e6b;
+}
+.hades-track.active { border-color: #b070ff; box-shadow: 0 0 12px #9a6cd077; }
+.ht-skull { font-size: 0.95rem; }
+.ht-cells { display: flex; gap: 2px; }
+.ht-cell {
+  width: 17px; height: 17px; line-height: 17px; text-align: center;
+  font-size: 0.6rem; border-radius: 4px; color: #b9a8d6;
+  background: #2a1f3e; border: 1px solid #3c2a58;
+}
+.ht-cell.end { border-color: #b85a5a; color: #e6a3a3; }
+.ht-cell.on { background: #9a6cd0; color: #110a1c; font-weight: 800; box-shadow: 0 0 8px #9a6cd0aa; }
+.ht-active { font-size: 0.7rem; font-weight: 800; color: #d7a3ff; }

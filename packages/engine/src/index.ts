@@ -9,4 +9,5 @@ export * from './creatures';
 export * from './metropolis';
 export * from './combat';
 export * from './movement';
+export * from './hades';
 export * from './game';

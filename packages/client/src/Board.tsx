@@ -22,6 +22,8 @@ import {
   troopReachable,
   isIsland,
   isSea,
+  undeadCost,
+  MAX_UNDEAD_PER_TURN,
 } from '@cyclades/engine';
 import type { CreatureDef, Territory } from '@cyclades/engine';
 import { BoardMap } from './BoardMap';
@@ -231,6 +233,10 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
   const turn = currentTurn(G);
   if (!turn) return null;
   const myTurn = activePlayerId(G) === me;
+  // Активация Аида: свой набор действий вместо обычного бога (Модуль 2).
+  if (turn.isHades) {
+    return <HadesActionBar G={G} me={me} moves={moves} selected={selected} myTurn={myTurn} />;
+  }
   const god = turn.god;
   const pid = turn.playerId;
   const s = G.actions!;
@@ -279,6 +285,47 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove 
             </button>
           )}
           <CreatureButtons G={G} pid={pid} moves={moves} sel={sel} selected={selected} god={god} s={s} />
+          <button className="end-turn" onClick={() => moves.endGod()}>Завершить →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Панель действий Аида (Модуль 2): наём Нежити, постройка Некрополя, существа. */
+function HadesActionBar({ G, me, moves, selected, myTurn }: {
+  G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null; myTurn: boolean;
+}) {
+  const turn = currentTurn(G)!;
+  const pid = turn.playerId;
+  const s = G.actions!;
+  const sel = selected ? G.territories[selected] : null;
+  const cost = undeadCost(s.recruited);
+  const limitReached = s.recruited >= MAX_UNDEAD_PER_TURN;
+  const canTroop = !!sel && isIsland(sel) && sel.ownerId === pid;
+  const canFleet = !!sel && isSea(sel) && canPlaceFleet(G, pid, sel.id);
+  const canNecropolis = !!sel && isIsland(sel) && sel.ownerId === pid && !sel.necropolis;
+
+  return (
+    <div className="action-bar hades">
+      <div className="ab-title">💀 Аид — {myTurn ? 'ваш ход' : G.players[pid].name}</div>
+      {myTurn && (
+        <div className="ab-controls">
+          <span className="sel-hint">{sel ? sel.name : 'кликните по карте'}</span>
+          <span className="hades-cost">
+            Нежить {s.recruited}/{MAX_UNDEAD_PER_TURN} · следующая {cost === 0 ? 'бесплатно' : `${cost}🪙`}
+          </span>
+          <button disabled={limitReached || !canTroop} onClick={() => moves.recruitUndead('troop', selected)}>
+            💀⚔️ Войско Нежити
+          </button>
+          <button disabled={limitReached || !canFleet} onClick={() => moves.recruitUndead('fleet', selected)}>
+            💀⛵ Флотилия Нежити
+          </button>
+          <button disabled={s.built || !canNecropolis} onClick={() => moves.buildNecropolis(selected)}
+            title="на месте Метрополии своего острова (постройки снесутся)">
+            ⚰️ Некрополь
+          </button>
+          <CreatureButtons G={G} pid={pid} moves={moves} sel={sel} selected={selected} god={turn.god} s={s} />
           <button className="end-turn" onClick={() => moves.endGod()}>Завершить →</button>
         </div>
       )}

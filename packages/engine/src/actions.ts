@@ -13,6 +13,7 @@ import { isIsland, isSea } from './board';
 import { islandsOf, freeSlots, log } from './helpers';
 import { checkMetropolis } from './metropolis';
 import { advanceCreatureMarket, cleanupBoardCreatures } from './creatures';
+import { endHadesCycle } from './hades';
 
 /** Что и почём нанимает каждый бог за одну активацию. */
 type RecruitKind = 'troop' | 'fleet' | 'priest' | 'philosopher';
@@ -44,7 +45,9 @@ export function startActionsPhase(G: CycladesState): void {
   if (a) {
     for (const god of COMPETITIVE_GODS) {
       const slot = a.slots.find((s) => s.god === god && s.occupantId);
-      if (slot && slot.occupantId) queue.push({ god, playerId: slot.occupantId });
+      if (slot && slot.occupantId) {
+        queue.push(slot.isHades ? { god, playerId: slot.occupantId, isHades: true } : { god, playerId: slot.occupantId });
+      }
     }
   }
   G.actions = { queue, index: 0, recruited: 0, built: false, creatureBought: false, creatureCycled: false };
@@ -200,6 +203,8 @@ export function endCycle(G: CycladesState, ctx: Ctx): void {
   advanceCreatureMarket(G.creatures);
   // Подстраховка: убираем фигуры существ старше текущего цикла.
   cleanupBoardCreatures(G);
+  // Если в этом цикле был активен Аид — Нежить уходит, трек Угрозы сбрасывается.
+  endHadesCycle(G);
 
   G.startIndex = (G.startIndex + 1) % ctx.playOrder.length;
   G.cycle += 1;
