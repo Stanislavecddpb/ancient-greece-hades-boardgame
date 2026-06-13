@@ -112,6 +112,16 @@ export interface Sea {
 
 export type Territory = Island | Sea;
 
+/** Нанятый Герой (Модуль 3): фигура на острове, живёт пока оплачивается апкип. */
+export interface HeroInstance {
+  /** id Героя из реестра HEROES. */
+  id: string;
+  /** Остров, на котором стоит фигура Героя. */
+  islandId: TerritoryId;
+  /** Цикл найма — в этот цикл Героя нельзя заставить пожертвовать собой. */
+  recruitedCycle: number;
+}
+
 export interface PlayerData {
   id: PlayerID;
   name: string;
@@ -129,6 +139,10 @@ export interface PlayerData {
   undeadTroopsSupply: number;
   /** Остаток фигурок Флотилий Нежити в запасе (Аид; сбрасывается каждый цикл). */
   undeadFleetsSupply: number;
+  /** Нанятые Герои (Модуль 3). */
+  heroes: HeroInstance[];
+  /** Метрополия на секретном острове Амазонок (Пентесилея) — неуязвима, считается в победу. */
+  secretMetropolis: boolean;
   isEliminated: boolean;
 }
 
@@ -260,8 +274,8 @@ export interface CyclopsSwapState {
 /** Игрок обязан немедленно разместить Метрополию (набрал 4 философа или 4 разных здания). */
 export interface MetropolisPlaceState {
   playerId: PlayerID;
-  /** Откуда: 4 философа или 4 разных здания (ресурс уже списан). */
-  source: 'philosophers' | 'buildings';
+  /** Откуда: 4 философа / 4 разных здания / самопожертвование Героя (ресурс уже списан). */
+  source: 'philosophers' | 'buildings' | 'hero';
 }
 
 /** Рынок мифических существ: колода, открытые карты, сброс. */
@@ -330,6 +344,8 @@ export interface CycladesState {
   satyrSteal: PlayerID | null;
   /** Игрок, перемещающий маркер процветания (Фурии): выбирает источник и свой остров. */
   furiesMove: PlayerID | null;
+  /** Самопожертвование Персея: увод войск с его острова на остров без Героя. */
+  perseusMove: { playerId: PlayerID; fromIsland: TerritoryId } | null;
   /** Замена здания Циклопом (выбран остров, идёт выбор типа) или null. */
   cyclopsSwap: CyclopsSwapState | null;
   /** Игрок обязан разместить Метрополию (сработал триггер 4 философа / 4 здания) или null. */

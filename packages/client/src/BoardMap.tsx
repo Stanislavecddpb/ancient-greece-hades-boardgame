@@ -11,6 +11,7 @@ import {
   BOARD_RADIUS,
   BOARD_VIEWBOX,
   CREATURES,
+  HEROES,
 } from '@cyclades/engine';
 import { SvgDefs } from './art/SvgDefs';
 import { Trireme, Hoplite, BuildingGlyph, Metropolis, CoinStack, ControlToken } from './art/pieces';
@@ -88,8 +89,45 @@ export function BoardMap({ G, me, selected, onSelect, movement }: Props) {
         return <CreatureToken key={i} x={t.pos.x} y={t.pos.y - LAND_R * 0.55}
           color={G.players[bc.ownerId].color} emblem={CREATURES[bc.kind]?.emblem ?? '★'} />;
       })}
+      {/* Фигуры Героев (Модуль 3) на островах. */}
+      {heroFigures(G).map((h, i) => (
+        <HeroToken key={i} x={h.x} y={h.y} color={h.color} emblem={h.emblem} />
+      ))}
       {movement && <MovementLayer G={G} movement={movement} />}
     </svg>
+  );
+}
+
+/** Позиции фигур Героев: раскладываем по острову со смещением при нескольких. */
+function heroFigures(G: CycladesState) {
+  const out: Array<{ x: number; y: number; color: string; emblem: string }> = [];
+  const perIsland: Record<string, number> = {};
+  for (const p of Object.values(G.players)) {
+    for (const h of p.heroes) {
+      const t = G.territories[h.islandId];
+      if (!t) continue;
+      const idx = perIsland[h.islandId] ?? 0;
+      perIsland[h.islandId] = idx + 1;
+      out.push({
+        x: t.pos.x - LAND_R * 0.55 + idx * 16,
+        y: t.pos.y - LAND_R * 0.1,
+        color: p.color,
+        emblem: HEROES[h.id]?.emblem ?? '★',
+      });
+    }
+  }
+  return out;
+}
+
+/** Жетон Героя: диск цвета владельца с золотой каймой и эмблемой. */
+function HeroToken({ x, y, color, emblem }: { x: number; y: number; color: string; emblem: string }) {
+  const r = CELL_D * 0.22;
+  return (
+    <g transform={`translate(${x} ${y})`} filter="url(#pieceShadow)">
+      <circle r={r + 2} fill="none" stroke="#e6c259" strokeWidth="2.5" />
+      <circle r={r} fill="#161b22" stroke={color} strokeWidth="3" />
+      <text textAnchor="middle" y={r * 0.4} fontSize={r * 1.05}>{emblem}</text>
+    </g>
   );
 }
 

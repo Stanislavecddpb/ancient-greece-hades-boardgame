@@ -17,6 +17,7 @@ import {
   applyCyclopsReplace,
 } from './creatures';
 import { applyPegasusMove } from './movement';
+import { HEROES } from './heroes';
 import type { CycladesState, Sea } from './types';
 
 function ctxFor(n: number): Ctx {
@@ -46,7 +47,8 @@ describe('рынок существ', () => {
     expect(typeof m.market[0]).toBe('string');
     expect(m.market[1]).toBeNull();
     expect(m.market[2]).toBeNull();
-    expect(m.deck.length).toBe(Object.keys(CREATURES).length - 1);
+    // В колоду замешаны и существа, и Герои (Модуль 3); одно открыто на рынке.
+    expect(m.deck.length).toBe(Object.keys(CREATURES).length + Object.keys(HEROES).length - 1);
     expect(m.discard).toHaveLength(0);
   });
 

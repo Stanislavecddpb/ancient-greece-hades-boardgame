@@ -10,6 +10,7 @@ import { isIsland, isSea } from './board';
 import { islandsOf, log } from './helpers';
 import { incomeFor, necropolisIsland } from './income';
 import { checkMetropolis } from './metropolis';
+import { isHero, makeHeroPool, placeHero } from './heroes';
 
 /** Куда нужно нацелить существо при покупке (или none — без цели). */
 export type CreatureTarget =
@@ -237,7 +238,8 @@ export function makeCreatureDeck(): string[] {
  * слота — рубашкой (null). Новые существа открываются сверху каждый цикл/Зевсом.
  */
 export function createCreatureMarket(shuffle?: <T>(a: T[]) => T[]): CreatureMarket {
-  const full = makeCreatureDeck();
+  // В общую колоду замешаны и Мифические Существа, и Герои (Модуль 3).
+  const full = [...makeCreatureDeck(), ...makeHeroPool()];
   const deck = shuffle ? shuffle(full) : full;
   const market: (string | null)[] = [deck.shift() ?? null, null, null];
   return { deck, market, discard: [] };
@@ -385,6 +387,21 @@ export function applyBuyCreature(
   if (s.creatureBought) return 'существо уже куплено в этот ход';
   const id = G.creatures.market[slotIndex];
   if (!id) return 'нет существа в этом слоте';
+
+  // Герой (Модуль 3): нанимается по цене слота БЕЗ скидки храмов, ставится на свой
+  // остров фигурой; уходит в игру (не в сброс), а не разыгрывается как существо.
+  if (isHero(id)) {
+    const heroCost = CREATURE_SLOT_PRICES[slotIndex] ?? CREATURE_SLOT_PRICES[CREATURE_SLOT_PRICES.length - 1];
+    if (G.players[pid].gold < heroCost) return 'не хватает золота';
+    const isl = targetId ? G.territories[targetId] : undefined;
+    if (!isl || !isIsland(isl) || isl.ownerId !== pid) return 'нужен свой остров для Героя';
+    G.players[pid].gold -= heroCost;
+    s.creatureBought = true;
+    placeHero(G, pid, id, targetId!);
+    G.creatures.market[slotIndex] = null;
+    return null;
+  }
+
   const def = CREATURES[id];
   if (!def) return 'неизвестное существо';
 
@@ -601,6 +618,9 @@ export function applyCycleCreatures(G: CycladesState, pid: PlayerID): string | n
   const s = G.actions;
   if (!s) return 'нет фазы действий';
   if (s.creatureCycled) return 'колода уже прокручена в этот ход';
+  // Зевсом нельзя сбросить карту Героя (нижний слот уходит в сброс при прокрутке).
+  const bottom = G.creatures.market[G.creatures.market.length - 1];
+  if (bottom && isHero(bottom)) return 'Зевсом нельзя сбросить Героя';
 
   s.creatureCycled = true;
   advanceCreatureMarket(G.creatures);

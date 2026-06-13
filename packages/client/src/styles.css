@@ -295,3 +295,13 @@ button:disabled { background: #34465c; color: #7e93ab; cursor: not-allowed; }
 .ht-active { font-size: 0.7rem; font-weight: 800; color: #d7a3ff; }
 
 .action-bar.combat button.loss-order { background: #4a3a6a; font-size: 0.74rem; }
+
+/* --- Модуль 3: Герои --- */
+.mk-card.hero { box-shadow: 0 0 0 2px #e6c25988; }
+.mk-art.hero { background: linear-gradient(160deg, #3a2f12, #6a531f); }
+.cr-buy.hero { background: #6a531f; }
+.hero-controls { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.hero-ctl { display: inline-flex; gap: 3px; align-items: center; padding: 2px 5px; border-radius: 6px; background: #2a2412; border: 1px solid #6a531f; }
+.hero-ctl .hc-name { font-size: 0.74rem; color: #e6c259; }
+.hero-ctl button { font-size: 0.72rem; padding: 2px 6px; background: #6a531f; }
+.hero-ctl button.dismiss { background: #5a2a2a; }

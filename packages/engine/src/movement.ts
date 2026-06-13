@@ -5,6 +5,7 @@ import { log } from './helpers';
 import { checkMetropolis } from './metropolis';
 import { boardCreatureAt } from './creatures';
 import { addNecropolisGold } from './income';
+import { removeHeroesOnCapture } from './heroes';
 
 export const FLEET_RANGE = 3;
 
@@ -465,6 +466,7 @@ export function applyCombatRetreat(G: CycladesState, pid: PlayerID): string | nu
 
 /** Передаёт остров новому владельцу со зданиями и метрополией (+ опц. Нежить). */
 function captureIsland(G: CycladesState, island: Island, pid: PlayerID, troops: number, undead = 0): void {
+  removeHeroesOnCapture(G, island.id, pid); // Герои проигравшего на острове гибнут
   island.ownerId = pid;
   island.troops = troops;
   island.undeadTroops = undead;

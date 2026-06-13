@@ -10,4 +10,5 @@ export * from './metropolis';
 export * from './combat';
 export * from './movement';
 export * from './hades';
+export * from './heroes';
 export * from './game';

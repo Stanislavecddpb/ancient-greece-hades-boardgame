@@ -28,6 +28,7 @@ import { applyBuyCreature, applyCycleCreatures, expireBoardCreatures, applySellU
 import { startFleetMove, hopFleet, endFleetMove, applyTroopMove, applyCombatRound, applyCombatRetreat, applySylphStep, endSylph, applyPushFleet, endPolyphemus, applyPegasusMove, endPegasus, applyHadesTroopMove, applyHadesFleetMove, applySetLossOrder } from './movement';
 import { dieFromRandom } from './combat';
 import { advanceHadesTrack, applyRecruitUndead, applyBuildNecropolis } from './hades';
+import { payHeroUpkeep, applySacrificeHero, applyDismissHero, applyPerseusMove, endPerseus } from './heroes';
 import type { TerritoryId as TId } from './types';
 
 export const GAME_ID = 'cyclades';
@@ -67,6 +68,8 @@ export const CycladesGame: Game<CycladesState> = {
       next: 'actions',
       onBegin: ({ G, ctx, random }) => {
         applyIncome(G);
+        // Модуль 3: сразу после дохода — апкип Героев (2🪙 за каждого).
+        payHeroUpkeep(G);
         // Модуль 2: в начале цикла бросаем 2 кубика и двигаем колонну Аида.
         if (G.modules.hades) advanceHadesTrack(G, random.Die(6), random.Die(6));
         setupAuction(G, ctx);
@@ -282,6 +285,28 @@ export const CycladesGame: Game<CycladesState> = {
         },
         endFuries: ({ G, playerID }) => {
           if (endFuries(G, playerID!)) return INVALID_MOVE;
+        },
+
+        // Герой жертвует собой (опция нужна Гектору: '2to1' | '5to2').
+        sacrificeHero: ({ G, playerID }, heroId: string, option?: string) => {
+          const turn = currentTurn(G);
+          if (G.combat || !turn || turn.playerId !== playerID) return INVALID_MOVE;
+          if (applySacrificeHero(G, playerID!, heroId, option)) return INVALID_MOVE;
+        },
+
+        // Добровольно распустить Героя (чтобы не платить апкип).
+        dismissHero: ({ G, playerID }, heroId: string) => {
+          const turn = currentTurn(G);
+          if (G.combat || !turn || turn.playerId !== playerID) return INVALID_MOVE;
+          if (applyDismissHero(G, playerID!, heroId)) return INVALID_MOVE;
+        },
+
+        // Персей (самопожертвование): увести войска на остров без Героя.
+        perseusMove: ({ G, playerID }, toIslandId: TId, count: number) => {
+          if (applyPerseusMove(G, playerID!, toIslandId, count)) return INVALID_MOVE;
+        },
+        endPerseus: ({ G, playerID }) => {
+          if (endPerseus(G, playerID!)) return INVALID_MOVE;
         },
 
         // Циклоп: заменить выбранное здание острова на здание другого типа.

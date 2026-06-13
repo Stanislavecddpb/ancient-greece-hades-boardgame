@@ -26,6 +26,8 @@ import {
   MAX_UNDEAD_PER_TURN,
   hadesTroopReachable,
   hadesFleetReachable,
+  HEROES,
+  isHero,
 } from '@cyclades/engine';
 import type { CreatureDef, Territory } from '@cyclades/engine';
 import { BoardMap } from './BoardMap';
@@ -136,6 +138,17 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
       .filter((t): t is Territory => isIsland(t) && t.id !== sel.id)
       .map((t) => t.id);
     if (targets.length) movement = { from: sel.id, targets, onMove: (to) => { moves.pegasusMove(sel.id, to, n); setSelected(null); } };
+  } else if (canAct && me && G.perseusMove && G.perseusMove.playerId === me) {
+    // Персей (самопожертвование): увод войск с его острова на остров без Героя.
+    const fromId = G.perseusMove.fromIsland;
+    const fromIsl = G.territories[fromId];
+    const n = isIsland(fromIsl) ? Math.min(Math.max(1, troopCount), fromIsl.troops) : 1;
+    const heroIslands = new Set(Object.values(G.players).flatMap((p) => p.heroes.map((h) => h.islandId)));
+    const targets = Object.values(G.territories)
+      .filter((t): t is Territory => isIsland(t) && t.id !== fromId && !heroIslands.has(t.id)
+        && !(t.ownerId != null && t.ownerId !== me && t.troops > 0))
+      .map((t) => t.id);
+    if (targets.length) movement = { from: fromId, targets, onMove: (to) => { moves.perseusMove(to, n); setSelected(null); } };
   } else if (canAct && me && G.fleetMove && G.fleetMove.playerId === me) {
     // Идёт приказ флоту: стрелки в соседние клетки от текущей позиции группы.
     const at = G.territories[G.fleetMove.at];
@@ -192,6 +205,8 @@ function GameView({ G, ctx, moves, me, matchData, matchID }: {
           <SatyrPanel G={G} ctx={ctx} me={me} moves={moves} nameOf={nameOf} />
         ) : G.furiesMove === me ? (
           <FuriesPanel G={G} me={me} moves={moves} selected={selected} />
+        ) : G.perseusMove && G.perseusMove.playerId === me ? (
+          <PerseusPanel G={G} moves={moves} troopCount={troopCount} setTroopCount={setTroopCount} />
         ) : G.cyclopsSwap && G.cyclopsSwap.playerId === me ? (
           <CyclopsPanel G={G} moves={moves} />
         ) : ctx.phase === 'actions' && G.pendingCornucopia ? (
@@ -237,6 +252,7 @@ function PlayersCorners({ G, ctx, activeId, me, nameOf }: {
               <span title="золото">🪙{pid === me ? p.gold : '?'}</span>
               <span title="жрецы">⚜️{pid === me ? p.priests : '?'}</span>
               <span title="философы">📜{pid === me ? p.philosophers : '?'}</span>
+              {p.heroes.length > 0 && <span title="герои">🦸{p.heroes.length}</span>}
               <span title="метрополии">🏛️{metropolisCount(G, pid)}</span>
             </div>
           </div>
@@ -310,6 +326,7 @@ function ActionBar({ G, me, moves, selected, troopCount, setTroopCount, hasMove,
             </button>
           )}
           <CreatureButtons G={G} pid={pid} moves={moves} sel={sel} selected={selected} god={god} s={s} />
+          <HeroControls G={G} pid={pid} moves={moves} />
           <button className="end-turn" onClick={() => moves.endGod()}>Завершить →</button>
         </div>
       )}
@@ -371,6 +388,7 @@ function HadesActionBar({ G, me, moves, selected, myTurn, hasMove,
             </span>
           )}
           <CreatureButtons G={G} pid={pid} moves={moves} sel={sel} selected={selected} god={turn.god} s={s} />
+          <HeroControls G={G} pid={pid} moves={moves} />
           <button className="end-turn" onClick={() => moves.endGod()}>Завершить →</button>
         </div>
       )}
@@ -386,7 +404,7 @@ function MarketColumn({ G }: { G: CycladesState; me: string | null }) {
       <div className="market-title">Существа</div>
       {market.map((id, i) => (
         <div className="mk-row" key={i}>
-          {id ? <CreatureCard def={CREATURES[id]} /> : <CardbackCard />}
+          {id ? (isHero(id) ? <HeroCard id={id} /> : <CreatureCard def={CREATURES[id]} />) : <CardbackCard />}
           <div className="mk-coins" title={`${CREATURE_SLOT_PRICES[i]} золота`}>
             {Array.from({ length: CREATURE_SLOT_PRICES[i] ?? 2 }, (_, k) => (
               <span key={k} className="mk-coin" />
@@ -409,6 +427,22 @@ function CreatureCard({ def }: { def: CreatureDef }) {
         <div className="mk-art"><span className="mk-emblem">{def.emblem}</span></div>
       )}
       <div className="mk-name">{def.name}</div>
+    </div>
+  );
+}
+
+/** Карта Героя на рынке (Модуль 3): отдельный арт-путь /heroes/<id>.jpg. */
+function HeroCard({ id }: { id: string }) {
+  const h = HEROES[id];
+  const [imgOk, setImgOk] = useState(true);
+  return (
+    <div className="mk-card hero" title={`Герой. Бой: ${h.warPower}. Жертва: ${h.sacrifice}`}>
+      {imgOk ? (
+        <img className="mk-img" src={`/heroes/${id}.jpg`} alt={h.name} onError={() => setImgOk(false)} />
+      ) : (
+        <div className="mk-art hero"><span className="mk-emblem">{h.emblem}</span></div>
+      )}
+      <div className="mk-name">{h.name} ⚔</div>
     </div>
   );
 }
@@ -742,6 +776,28 @@ function SatyrPanel({ G, ctx, me, moves, nameOf }: {
   );
 }
 
+/** Персей (самопожертвование): увод войск с его острова на остров без Героя. */
+function PerseusPanel({ G, moves, troopCount, setTroopCount }: {
+  G: CycladesState; moves: any; troopCount: number; setTroopCount: (n: number) => void;
+}) {
+  const from = G.territories[G.perseusMove!.fromIsland];
+  const max = isIsland(from) ? from.troops : 1;
+  return (
+    <div className="action-bar fleetmove">
+      <div className="ab-title">⚔️ Персей: уведите войска с {from?.name} на остров без Героя</div>
+      <div className="ab-controls">
+        <span className="move-box">
+          <span>войск:</span>
+          <input type="number" min={1} max={max} value={Math.min(troopCount, max)} style={{ width: 40 }}
+            onChange={(e) => setTroopCount(Math.max(1, Math.min(max, Number(e.target.value))))} />
+          <span className="sel-hint">→ стрелка на остров назначения</span>
+        </span>
+        <button className="end-turn" onClick={() => moves.endPerseus()}>Отмена</button>
+      </div>
+    </div>
+  );
+}
+
 /** Фурии: перенести маркер процветания с любого острова на свой (два клика по карте). */
 function FuriesPanel({ G, me, moves, selected }: {
   G: CycladesState; me: string | null; moves: any; selected: TerritoryId | null;
@@ -818,7 +874,8 @@ function MetropolisPanel({ G, me, moves, selected }: {
   const sel = selected ? G.territories[selected] : null;
   const ok = !!sel && isIsland(sel) && sel.ownerId === me && !sel.hasMetropolis;
   const willDestroy = ok && isIsland(sel) && freeSlots(sel) < metropolisSlotCost(sel);
-  const src = G.metropolisPlace!.source === 'philosophers' ? '4 философа' : '4 разных здания';
+  const src = G.metropolisPlace!.source === 'philosophers' ? '4 философа'
+    : G.metropolisPlace!.source === 'buildings' ? '4 разных здания' : 'Герой';
   return (
     <div className="action-bar prosperity">
       <div className="ab-title">🏛️ Метрополия ({src}): выберите свой остров для установки</div>
@@ -860,6 +917,20 @@ function CreatureButtons({ G, pid, moves, sel, selected, god, s }: {
     <span className="creature-buy">
       {market.map((id, i) => {
         if (!id) return null; // пустой слот (рубашка) — покупать нечего
+        // Герой: цена слота без скидки храмов; цель — свой остров (фигура).
+        if (isHero(id)) {
+          const h = HEROES[id];
+          const hcost = CREATURE_SLOT_PRICES[i] ?? 2;
+          const ok = !!sel && isIsland(sel) && sel.ownerId === pid;
+          const disabled = !!s.creatureBought || gold < hcost || !ok;
+          return (
+            <button key={i} className="cr-buy hero" disabled={disabled}
+              title={ok ? `нанять Героя на ${sel!.name}` : 'выберите свой остров для Героя'}
+              onClick={() => moves.buyCreature(i, selected)}>
+              {h.emblem} {h.name} (Герой, {hcost}🪙)
+            </button>
+          );
+        }
         const d = CREATURES[id];
         const cost = creaturePriceAt(G, pid, i); // цена по позиции слота
         const needsTarget = d.target !== 'none';
@@ -879,6 +950,34 @@ function CreatureButtons({ G, pid, moves, sel, selected, god, s }: {
           🔄 прокрутить
         </button>
       )}
+    </span>
+  );
+}
+
+/** Управление своими Героями: самопожертвование (Гектору — выбор) и роспуск. */
+function HeroControls({ G, pid, moves }: { G: CycladesState; pid: string; moves: any }) {
+  const heroes = G.players[pid].heroes;
+  if (heroes.length === 0) return null;
+  return (
+    <span className="hero-controls">
+      {heroes.map((h, i) => {
+        const def = HEROES[h.id];
+        const canSac = h.recruitedCycle !== G.cycle; // нельзя жертвовать в ход найма
+        return (
+          <span key={i} className="hero-ctl" title={`Бой: ${def.warPower}. Жертва: ${def.sacrifice}`}>
+            <span className="hc-name">{def.emblem}{def.name}</span>
+            {h.id === 'hector' ? (
+              <>
+                <button disabled={!canSac} onClick={() => moves.sacrificeHero('hector', '2to1')} title="2 Жреца → 1 Философ">⚱2→1</button>
+                <button disabled={!canSac} onClick={() => moves.sacrificeHero('hector', '5to2')} title="5 Жрецов → 2 Философа">⚱5→2</button>
+              </>
+            ) : (
+              <button disabled={!canSac} onClick={() => moves.sacrificeHero(h.id)} title={def.sacrifice}>⚱ жертва</button>
+            )}
+            <button className="dismiss" onClick={() => moves.dismissHero(h.id)} title="распустить (не платить апкип)">✖</button>
+          </span>
+        );
+      })}
     </span>
   );
 }

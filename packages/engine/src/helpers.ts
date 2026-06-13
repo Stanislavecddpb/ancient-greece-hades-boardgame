@@ -14,9 +14,10 @@ export function islandsOf(G: CycladesState, pid: PlayerID): Island[] {
   );
 }
 
-/** Сколько Метрополий у игрока. */
+/** Сколько Метрополий у игрока (включая секретную Амазонок — Пентесилея). */
 export function metropolisCount(G: CycladesState, pid: PlayerID): number {
-  return islandsOf(G, pid).filter((i) => i.hasMetropolis).length;
+  const onBoard = islandsOf(G, pid).filter((i) => i.hasMetropolis).length;
+  return onBoard + (G.players[pid]?.secretMetropolis ? 1 : 0);
 }
 
 /** Типы зданий, которые есть у игрока (по всем его островам). */

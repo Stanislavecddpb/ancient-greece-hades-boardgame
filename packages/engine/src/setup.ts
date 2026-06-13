@@ -66,6 +66,8 @@ export function setupGame(ctx: Ctx, random?: RandomAPI, modules?: Partial<Module
       fleetsSupply: UNIT_SUPPLY - fleetsPlaced,
       undeadTroopsSupply: UNDEAD_SUPPLY,
       undeadFleetsSupply: UNDEAD_SUPPLY,
+      heroes: [],
+      secretMetropolis: false,
       isEliminated: false,
     };
   });
@@ -90,6 +92,7 @@ export function setupGame(ctx: Ctx, random?: RandomAPI, modules?: Partial<Module
     chimeraPick: null,
     satyrSteal: null,
     furiesMove: null,
+    perseusMove: null,
     cyclopsSwap: null,
     metropolisPlace: null,
     modules: { hades: true, ...modules },
